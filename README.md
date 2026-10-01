@@ -5,7 +5,7 @@
 You save valuable things across Arc's Spaces, folders and favorites, but that library is hard to export, back up or move anywhere else. ArcVault turns it into portable data you own: JSON, CSV, Markdown, browser bookmarks, or a searchable offline page.
 
 ```bash
-pipx install arcvault        # once published to PyPI (see "Install from source" below)
+pipx install arcvault
 arcvault export
 ```
 
@@ -76,9 +76,18 @@ categories = ["Artificial Intelligence", "Robotics", "Cooking"]
 Cooking = ["recipe", "baking", "sourdough"]
 ```
 
-## Install from source
+## Install
 
 Requires Python 3.11+ and macOS with Arc installed.
+
+```bash
+pipx install arcvault     # recommended: isolated install, `arcvault` on your PATH
+pip install arcvault      # or with plain pip
+```
+
+No pipx? `brew install pipx && pipx ensurepath`.
+
+From source:
 
 ```bash
 git clone https://github.com/lexdumitrache/arcvault && cd arcvault
