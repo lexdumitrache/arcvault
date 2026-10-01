@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "arcvault"
+version = "1.0.0"
+description = "Export, preserve, search, recover and organize your Arc browser library."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "ArcVault contributors" }]
+keywords = ["arc", "browser", "bookmarks", "export", "tabs", "knowledge-base"]
+classifiers = [
+  "Environment :: Console",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Topic :: Utilities",
+]
+dependencies = ["typer>=0.12", "rich>=13"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.10"]
+
+[project.scripts]
+arcvault = "arcvault.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/arcvault/arcvault"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/arcvault"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = ["B008", "E501", "RUF001", "RUF002", "RUF003"]  # line length is the formatter's job
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/arcvault"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

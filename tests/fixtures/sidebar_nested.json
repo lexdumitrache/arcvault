@@ -1,0 +1,362 @@
+{
+ "version": 1,
+ "sidebar": {
+  "containers": [
+   {
+    "global": {}
+   },
+   {
+    "items": [
+     "S1-P",
+     {
+      "id": "S1-P",
+      "parentID": null,
+      "childrenIds": [
+       "F1",
+       "T-top"
+      ],
+      "title": null,
+      "createdAt": 780000000.0,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "S1"
+         }
+        }
+       }
+      }
+     },
+     "S1-U",
+     {
+      "id": "S1-U",
+      "parentID": null,
+      "childrenIds": [
+       "T-today"
+      ],
+      "title": null,
+      "createdAt": 780000000.0,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "S1"
+         }
+        }
+       }
+      }
+     },
+     "F1",
+     {
+      "id": "F1",
+      "parentID": "S1-P",
+      "childrenIds": [
+       "F2"
+      ],
+      "title": "Learning",
+      "createdAt": 780000000.0,
+      "data": {
+       "list": {}
+      }
+     },
+     "F2",
+     {
+      "id": "F2",
+      "parentID": "F1",
+      "childrenIds": [
+       "F3"
+      ],
+      "title": "Artificial Intelligence",
+      "createdAt": 780000000.0,
+      "data": {
+       "list": {}
+      }
+     },
+     "F3",
+     {
+      "id": "F3",
+      "parentID": "F2",
+      "childrenIds": [
+       "T-attn",
+       "SPLIT"
+      ],
+      "title": "Transformers",
+      "createdAt": 780000000.0,
+      "data": {
+       "list": {}
+      }
+     },
+     "T-attn",
+     {
+      "id": "T-attn",
+      "parentID": "F3",
+      "childrenIds": [],
+      "title": null,
+      "createdAt": 780000000.0,
+      "isUnread": false,
+      "originatingDevice": "DEVICE",
+      "data": {
+       "tab": {
+        "savedURL": "https://arxiv.org/abs/1706.03762",
+        "savedTitle": "Attention Is All You Need",
+        "savedMuteStatus": "allowAudio",
+        "timeLastActiveAt": 780000100.0
+       }
+      }
+     },
+     "SPLIT",
+     {
+      "id": "SPLIT",
+      "parentID": "F3",
+      "childrenIds": [
+       "T-s1",
+       "T-s2"
+      ],
+      "title": null,
+      "data": {
+       "splitView": {
+        "layoutOrientation": "horizontal"
+       }
+      }
+     },
+     "T-s1",
+     {
+      "id": "T-s1",
+      "parentID": "SPLIT",
+      "childrenIds": [],
+      "title": null,
+      "createdAt": 780000000.0,
+      "isUnread": false,
+      "originatingDevice": "DEVICE",
+      "data": {
+       "tab": {
+        "savedURL": "https://github.com/example/robot-arm",
+        "savedTitle": "example/robot-arm",
+        "savedMuteStatus": "allowAudio",
+        "timeLastActiveAt": 780000100.0
+       }
+      }
+     },
+     "T-s2",
+     {
+      "id": "T-s2",
+      "parentID": "SPLIT",
+      "childrenIds": [],
+      "title": null,
+      "createdAt": 780000000.0,
+      "isUnread": false,
+      "originatingDevice": "DEVICE",
+      "data": {
+       "tab": {
+        "savedURL": "https://www.youtube.com/watch?v=abcdefghijk",
+        "savedTitle": "Robot Learning Lecture",
+        "savedMuteStatus": "allowAudio",
+        "timeLastActiveAt": 780000100.0
+       }
+      }
+     },
+     "T-top",
+     {
+      "id": "T-top",
+      "parentID": "S1-P",
+      "childrenIds": [],
+      "title": "My Example",
+      "createdAt": 780000000.0,
+      "isUnread": false,
+      "originatingDevice": "DEVICE",
+      "data": {
+       "tab": {
+        "savedURL": "https://example.com/?utm_source=x",
+        "savedTitle": "Example",
+        "savedMuteStatus": "allowAudio",
+        "timeLastActiveAt": 780000100.0
+       }
+      }
+     },
+     "T-today",
+     {
+      "id": "T-today",
+      "parentID": "S1-U",
+      "childrenIds": [],
+      "title": null,
+      "createdAt": 780000000.0,
+      "isUnread": false,
+      "originatingDevice": "DEVICE",
+      "data": {
+       "tab": {
+        "savedURL": "https://news.example.org/story",
+        "savedTitle": "A story",
+        "savedMuteStatus": "allowAudio",
+        "timeLastActiveAt": 780000100.0
+       }
+      }
+     },
+     "S2-P",
+     {
+      "id": "S2-P",
+      "parentID": null,
+      "childrenIds": [
+       "T-dup"
+      ],
+      "title": null,
+      "createdAt": 780000000.0,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "S2"
+         }
+        }
+       }
+      }
+     },
+     "S2-U",
+     {
+      "id": "S2-U",
+      "parentID": null,
+      "childrenIds": [],
+      "title": null,
+      "createdAt": 780000000.0,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "spaceItems": {
+          "_0": "S2"
+         }
+        }
+       }
+      }
+     },
+     "T-dup",
+     {
+      "id": "T-dup",
+      "parentID": "S2-P",
+      "childrenIds": [],
+      "title": null,
+      "createdAt": 780000000.0,
+      "isUnread": false,
+      "originatingDevice": "DEVICE",
+      "data": {
+       "tab": {
+        "savedURL": "https://arxiv.org/pdf/1706.03762",
+        "savedTitle": "1706.03762.pdf",
+        "savedMuteStatus": "allowAudio",
+        "timeLastActiveAt": 780000100.0
+       }
+      }
+     },
+     "FAV",
+     {
+      "id": "FAV",
+      "parentID": null,
+      "childrenIds": [
+       "T-fav"
+      ],
+      "title": null,
+      "createdAt": 780000000.0,
+      "data": {
+       "itemContainer": {
+        "containerType": {
+         "topApps": {
+          "_0": {
+           "default": true
+          }
+         }
+        }
+       }
+      }
+     },
+     "T-fav",
+     {
+      "id": "T-fav",
+      "parentID": "FAV",
+      "childrenIds": [],
+      "title": null,
+      "createdAt": 780000000.0,
+      "isUnread": false,
+      "originatingDevice": "DEVICE",
+      "data": {
+       "tab": {
+        "savedURL": "https://mail.example.com/",
+        "savedTitle": "Mail",
+        "savedMuteStatus": "allowAudio",
+        "timeLastActiveAt": 780000100.0
+       }
+      }
+     }
+    ],
+    "spaces": [
+     "S1",
+     {
+      "id": "S1",
+      "title": "Personal",
+      "profile": {
+       "default": true
+      },
+      "customInfo": {},
+      "containerIDs": [
+       "unpinned",
+       "S1-U",
+       "pinned",
+       "S1-P"
+      ],
+      "newContainerIDs": [
+       {
+        "unpinned": {
+         "_0": {
+          "shared": {}
+         }
+        }
+       },
+       "S1-U",
+       {
+        "pinned": {}
+       },
+       "S1-P"
+      ]
+     },
+     "S2",
+     {
+      "id": "S2",
+      "title": "Research",
+      "profile": {
+       "custom": {
+        "_0": {
+         "directoryBasename": "Profile 1",
+         "machineID": "M"
+        }
+       }
+      },
+      "customInfo": {},
+      "containerIDs": [
+       "unpinned",
+       "S2-U",
+       "pinned",
+       "S2-P"
+      ],
+      "newContainerIDs": [
+       {
+        "unpinned": {
+         "_0": {
+          "shared": {}
+         }
+        }
+       },
+       "S2-U",
+       {
+        "pinned": {}
+       },
+       "S2-P"
+      ]
+     }
+    ],
+    "topAppsContainerIDs": [
+     {
+      "default": true
+     },
+     "FAV"
+    ]
+   }
+  ]
+ }
+}

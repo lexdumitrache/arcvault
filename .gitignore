@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# NEVER commit real Arc data or exports.
+*.sqlite
+*.sqlite3
+*.db
+History
+StorableSidebar.json
+StorableArchiveItems.json
+Storable*.json
+Session_*
+Tabs_*
+arcvault-export/
+exports/
+recovered/
+knowledge-base/
+arcvault.json
+arcvault.csv
+arcvault.md
+bookmarks.html
+library.html
+arc-structure.json
+*.history.json
+private/
+user-data/
+.playwright-mcp/
+
+# Secrets
+.env
+.env.*
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,86 @@
+{
+ "version": 1,
+ "items": [
+  "A1",
+  {
+   "sidebarItem": {
+    "id": "A1",
+    "parentID": null,
+    "childrenIds": [],
+    "title": null,
+    "createdAt": 780000000.0,
+    "isUnread": false,
+    "originatingDevice": "DEVICE",
+    "data": {
+     "tab": {
+      "savedURL": "https://archived.example.com/a",
+      "savedTitle": "Archived A1",
+      "savedMuteStatus": "allowAudio",
+      "timeLastActiveAt": 780000100.0
+     }
+    }
+   },
+   "source": {
+    "space": {
+     "_0": "S1"
+    }
+   },
+   "reason": "auto",
+   "archivedAt": 780000500.0
+  },
+  "A2",
+  {
+   "sidebarItem": {
+    "id": "A2",
+    "parentID": null,
+    "childrenIds": [],
+    "title": null,
+    "createdAt": 780000000.0,
+    "isUnread": false,
+    "originatingDevice": "DEVICE",
+    "data": {
+     "tab": {
+      "savedURL": "https://arxiv.org/abs/1706.03762v5",
+      "savedTitle": "Archived A2",
+      "savedMuteStatus": "allowAudio",
+      "timeLastActiveAt": 780000100.0
+     }
+    }
+   },
+   "source": {
+    "littleArc": {}
+   },
+   "reason": "manual",
+   "archivedAt": 780000500.0
+  },
+  "A3",
+  {
+   "sidebarItem": {
+    "id": "A3",
+    "parentID": null,
+    "childrenIds": [],
+    "title": null,
+    "createdAt": 780000000.0,
+    "isUnread": false,
+    "originatingDevice": "DEVICE",
+    "data": {
+     "tab": {
+      "savedURL": "https://other.example.com/",
+      "savedTitle": "Archived A3",
+      "savedMuteStatus": "allowAudio",
+      "timeLastActiveAt": 780000100.0
+     }
+    }
+   },
+   "source": {
+    "unknown": {}
+   },
+   "reason": "manual",
+   "archivedAt": 780000500.0
+  },
+  "BROKEN",
+  {
+   "source": {}
+  }
+ ]
+}

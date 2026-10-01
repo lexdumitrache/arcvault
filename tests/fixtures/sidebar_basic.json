@@ -1,0 +1,111 @@
+{
+ "version": 1,
+ "sidebarSyncState": {
+  "items": [
+   "P",
+   {
+    "value": {
+     "id": "P",
+     "parentID": null,
+     "childrenIds": [
+      "T1"
+     ],
+     "title": null,
+     "createdAt": 780000000.0,
+     "data": {
+      "itemContainer": {
+       "containerType": {
+        "spaceItems": {
+         "_0": "S"
+        }
+       }
+      }
+     }
+    },
+    "encodedCKRecordFields": "X"
+   },
+   "U",
+   {
+    "value": {
+     "id": "U",
+     "parentID": null,
+     "childrenIds": [],
+     "title": null,
+     "createdAt": 780000000.0,
+     "data": {
+      "itemContainer": {
+       "containerType": {
+        "spaceItems": {
+         "_0": "S"
+        }
+       }
+      }
+     }
+    },
+    "encodedCKRecordFields": "X"
+   },
+   "T1",
+   {
+    "value": {
+     "id": "T1",
+     "parentID": "P",
+     "childrenIds": [],
+     "title": null,
+     "createdAt": 780000000.0,
+     "isUnread": false,
+     "originatingDevice": "DEVICE",
+     "data": {
+      "tab": {
+       "savedURL": "https://docs.python.org/3/",
+       "savedTitle": "Python docs",
+       "savedMuteStatus": "allowAudio",
+       "timeLastActiveAt": 780000100.0
+      }
+     }
+    },
+    "encodedCKRecordFields": "X"
+   }
+  ],
+  "spaceModels": [
+   "S",
+   {
+    "value": {
+     "id": "S",
+     "title": "Work",
+     "profile": {
+      "default": true
+     },
+     "customInfo": {},
+     "containerIDs": [
+      "unpinned",
+      "U",
+      "pinned",
+      "P"
+     ],
+     "newContainerIDs": [
+      {
+       "unpinned": {
+        "_0": {
+         "shared": {}
+        }
+       }
+      },
+      "U",
+      {
+       "pinned": {}
+      },
+      "P"
+     ]
+    }
+   }
+  ],
+  "container": {
+   "value": {
+    "orderedSpaceIDs": [
+     "S"
+    ],
+    "topAppsContainerIDs": []
+   }
+  }
+ }
+}
