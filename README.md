@@ -104,7 +104,7 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 | Arc 1.165.1 on macOS, one real library | Checked against real data: every saved sidebar tab is exported, every location survives deduplication, and all export formats contain the same resources |
 | Edge cases (unknown node types, malformed items, half-written files, same-named folders, cycles) | Covered by synthetic tests |
 | Other Arc versions on macOS | Not tested. Unknown layouts are handled best-effort and reported |
-| Importing `bookmarks.html` into Chrome, Firefox, Safari or Edge | Not tested yet. The file uses the standard Netscape format those browsers import |
+| Importing `bookmarks.html` into a browser | Checked by hand with a real export: Space and folder nesting, same-named folders, links saved in several places, special characters in titles, favorites. Uses the standard Netscape format that Chrome, Firefox, Safari and Edge import |
 | Arc for Windows | Not supported yet |
 
 If something is missing or looks wrong, run `arcvault doctor`, then `arcvault inspect --sanitize > arc-structure.json`, and attach that file to an [issue](https://github.com/lexdumitrache/arcvault/issues). It contains structure only: URLs, titles and names are replaced with placeholders.

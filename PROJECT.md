@@ -90,7 +90,7 @@ Keep the normalized `Resource`/`Location` model and the extraction → processin
 
 ## A8. Claims policy
 
-The README only claims what has been verified. "Checked on real data" currently means one Arc 1.165.1 install on macOS. Browser import of `bookmarks.html` has not been tested.
+The README only claims what has been verified. "Checked on real data" currently means one Arc 1.165.1 install on macOS. Browser import of `bookmarks.html` was checked by hand with a real export (2026-10-01).
 
 ---
 

@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-10-01
 
 - `organize`: when no keyword rule matches, a link's topic is now the folder you saved it in, then its type (new "Videos" group alongside papers and courses). On the test library this cut uncategorized links from 49% to 17%.
+- The bookmarks export has been checked by importing a real export into a browser.
 
 ## 1.0.1 — 2026-10-01
 
