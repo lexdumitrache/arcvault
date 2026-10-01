@@ -57,7 +57,7 @@ arcvault
 Until then, install from source:
 
 ```bash
-git clone https://github.com/arcvault/arcvault && cd arcvault
+git clone https://github.com/lexdumitrache/arcvault && cd arcvault
 python3 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/arcvault
 ```

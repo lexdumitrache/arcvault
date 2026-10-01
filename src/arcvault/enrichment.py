@@ -22,7 +22,7 @@ from arcvault.models import Resource
 from arcvault.processing.normalize import ARXIV, GITHUB, GITHUB_NON_REPO, YOUTUBE
 
 log = logging.getLogger("arcvault")
-UA = f"ArcVault/{__version__} (+https://github.com/arcvault/arcvault)"
+UA = f"ArcVault/{__version__} (+https://github.com/lexdumitrache/arcvault)"
 TIMEOUT = 10
 MAX_BYTES = 512_000
 
