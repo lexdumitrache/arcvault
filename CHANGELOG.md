@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `organize`: when no keyword rule matches, a link's topic is now the folder you saved it in, then its type (new "Videos" group alongside papers and courses). On the test library this cut uncategorized links from 49% to 17%.
+
 ## 1.0.1 — 2026-10-01
 
 Security hardening from an audit. Web pages control their own titles and URLs, so those are now treated as hostile input everywhere they're shown.

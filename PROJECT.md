@@ -42,6 +42,8 @@ Rules:
 3. **The hierarchy is exported faithfully.** Markdown, bookmarks and the HTML library place a resource at every location. Folders are keyed by Arc folder id, so same-named sibling folders stay separate, and empty folders are kept.
 4. **Read-only and offline.** No network, no API keys, no writes to Arc's directory.
 
+Topic organization order: keyword rules → the innermost folder the link is saved in (the user's own organization) → resource type (papers, courses, videos, …) → "Other".
+
 Core formats (`arcvault export` default): JSON (lossless), CSV, Markdown, Netscape bookmarks, standalone HTML library.
 
 ## A3. Recovery data: kept separate from the library

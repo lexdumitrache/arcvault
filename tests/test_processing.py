@@ -149,3 +149,20 @@ def test_categories_configurable() -> None:
     org = RuleOrganizer(cats)
     assert org.classify(r("1", "https://e.com/best-recipe")).category == "Cooking"
     assert org.classify(r("2", "https://e.com/", title="LLM news")).category == "Other"
+
+
+def test_organizer_falls_back_to_your_folder_then_type() -> None:
+    org = RuleOrganizer()
+    # No keyword matches: the folder it was saved in becomes the topic.
+    c = org.classify(r("1", "https://e.com/x", title="Untitled", folder_path=["Stuff", "Gift ideas"]))
+    assert (c.category, c.method) == ("Gift ideas", "folder")
+    # Keywords still win over folder names.
+    c = org.classify(r("2", "https://e.com/y", title="Robot arm", folder_path=["Gift ideas"]))
+    assert c.category == "Robotics"
+    # Unnamed folders are not topics; fall through to the resource type.
+    vid = r("3", "https://youtu.be/abcdefghijk", title="Untitled", folder_path=["Untitled folder"])
+    vid.resource_type = T.VIDEO
+    assert (org.classify(vid).category, org.classify(vid).method) == ("Videos", "type")
+    # A restricted category list disables type fallbacks it doesn't include.
+    only = RuleOrganizer(categories_from_config({"organization": {"categories": ["Robotics"]}}))
+    assert only.classify(vid).category == "Other"

@@ -45,7 +45,7 @@ If you saved the same link in several places, ArcVault keeps **every** place. In
 └── library.html      offline page with search, filters and a folder tree
 ```
 
-Each resource also gets an offline **type** (paper, video, repo, docs, course, PDF, …) and a **topic** from simple keyword rules. No API key is needed.
+Each resource also gets an offline **type** (paper, video, repo, docs, course, PDF, …) and a **topic**. No API key is needed.
 
 ## Recover auto-archived tabs
 
@@ -63,6 +63,8 @@ To include archived tabs in a normal export instead, use `arcvault export --arch
 arcvault organize           # shows your library grouped into topics
 arcvault organize --write   # also writes a Markdown folder per topic
 ```
+
+Topics come from keyword rules first. If nothing matches, the name of the folder you saved the link in becomes its topic, then its type (papers, courses, videos). Your own organization beats a guess.
 
 You can configure the topics in `~/.config/arcvault/config.toml`:
 

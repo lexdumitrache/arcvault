@@ -55,16 +55,19 @@ DEFAULT_CATEGORIES: dict[str, list[str]] = {
     # Fallbacks reached via resource type (TYPE_CATEGORIES) when no keyword matches.
     "Research Papers": [],
     "Courses": [],
+    "Videos": [],
 }  # fmt: skip
 
 TYPE_CATEGORIES = {
     ResourceType.PAPER: "Research Papers",
     ResourceType.COURSE: "Courses",
+    ResourceType.VIDEO: "Videos",
     ResourceType.GITHUB_REPOSITORY: "Developer Tools",
     ResourceType.NEWS: "News",
     ResourceType.SHOPPING: "Shopping",
 }
 OTHER = "Other"
+UNNAMED_FOLDER = "Untitled folder"
 
 
 class RuleOrganizer:
@@ -95,6 +98,10 @@ class RuleOrganizer:
             best = max(scores, key=lambda k: (scores[k], -self.categories.index(k)))
             conf = min(0.95, 0.4 + 0.15 * scores[best])
             return Classification(best, round(conf, 2), "rules")
+        # No keyword matched: the folder you saved it in is better than any guess of ours.
+        for loc in r.locations or [r.as_location()]:
+            if loc.folder_path and loc.folder_path[-1] != UNNAMED_FOLDER:
+                return Classification(loc.folder_path[-1], 0.6, "folder")
         if r.resource_type in TYPE_CATEGORIES and TYPE_CATEGORIES[r.resource_type] in self.categories:
             return Classification(TYPE_CATEGORIES[r.resource_type], 0.5, "type")
         return Classification(OTHER, 0.0, "rules")
