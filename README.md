@@ -22,7 +22,7 @@ Arc
  JSON · CSV · Markdown · Bookmarks · HTML library
 ```
 
-> **Privacy:** ArcVault reads browser data that may contain sensitive browsing information. By default, all processing happens locally. ArcVault doesn't collect telemetry or upload your browsing data, and it never writes to Arc's files. See [docs/privacy.md](docs/privacy.md).
+> **Privacy:** ArcVault reads browser data that may contain sensitive browsing information. By default, all processing happens locally. ArcVault doesn't collect telemetry or upload your browsing data, and it never writes to Arc's files. See [docs/privacy.md](https://github.com/lexdumitrache/arcvault/blob/main/docs/privacy.md).
 
 ## What `arcvault export` gives you
 
@@ -123,7 +123,7 @@ library.export("json", "arc.json")
 
 ## How it works
 
-ArcVault reads Arc's sidebar and archive files without modifying them. It turns every saved tab into a `Resource`, normalizes URLs conservatively (fragments and query strings are kept apart from known tracking parameters), and merges links that are the same while keeping every location. It then writes the exports. Arc's storage format is documented in [docs/arc-data.md](docs/arc-data.md), and the code layout in [docs/architecture.md](docs/architecture.md).
+ArcVault reads Arc's sidebar and archive files without modifying them. It turns every saved tab into a `Resource`, normalizes URLs conservatively (fragments and query strings are kept apart from known tracking parameters), and merges links that are the same while keeping every location. It then writes the exports. Arc's storage format is documented in [docs/arc-data.md](https://github.com/lexdumitrache/arcvault/blob/main/docs/arc-data.md), and the code layout in [docs/architecture.md](https://github.com/lexdumitrache/arcvault/blob/main/docs/architecture.md).
 
 ## Development
 
@@ -133,7 +133,7 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ARCVAULT_REAL_ARC=1 .venv/bin/pytest tests/test_real_arc.py   # optional: invariants on your own Arc data
 ```
 
-The tests use synthetic fixtures. Real browsing data never goes into the repository. See [docs/contributing.md](docs/contributing.md).
+The tests use synthetic fixtures. Real browsing data never goes into the repository. See [docs/contributing.md](https://github.com/lexdumitrache/arcvault/blob/main/docs/contributing.md).
 
 ## License
 
