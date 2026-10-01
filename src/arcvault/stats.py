@@ -8,25 +8,28 @@ if TYPE_CHECKING:
 
 
 def compute_stats(lib: Library, top: int = 10) -> dict[str, Any]:
-    allr, uniq = lib.resources, lib.unique
-    dates = [d for r in allr for d in (r.created_at, r.visited_at) if d]
+    uniq = lib.unique
+    locs = [loc for r in uniq for loc in r.locations]
+    dates = [d for loc in locs for d in (loc.created_at, loc.visited_at) if d]
     return {
-        "total_records": len(allr),
         "unique_resources": len(uniq),
-        "duplicates": len(allr) - len(uniq),
+        "saved_locations": len(locs),
+        # Resources saved in more than one place (all places are kept in `locations`).
+        "saved_in_multiple_places": sum(1 for r in uniq if len(r.locations) > 1),
         "spaces": len(lib.spaces),
-        "folders": len(
-            {(r.space, tuple(r.folder_path[: i + 1])) for r in allr for i in range(len(r.folder_path))}
-        ),
-        "sources": dict(Counter(r.source_type.value for r in allr).most_common()),
+        "folders": len(lib.folders),
+        "sources": dict(Counter(loc.source_type.value for loc in locs).most_common()),
         "types": dict(Counter(r.resource_type.value for r in uniq if r.resource_type).most_common()),
         "categories": dict(Counter(r.category for r in uniq if r.category).most_common(top)),
         "domains": dict(Counter(r.domain for r in uniq if r.domain).most_common(top)),
-        "per_space": dict(Counter(r.space or "(none)" for r in uniq).most_common()),
+        # A resource saved in two Spaces counts once in each.
+        "per_space": dict(
+            Counter(s for r in uniq for s in {loc.space or "(none)" for loc in r.locations}).most_common()
+        ),
         "top_folders": dict(
-            Counter(" > ".join([r.space or "", *r.folder_path]) for r in uniq if r.folder_path).most_common(
-                top
-            )
+            Counter(
+                " > ".join([loc.space or "", *loc.folder_path]) for loc in locs if loc.folder_path
+            ).most_common(top)
         ),
         "oldest": min(dates).isoformat() if dates else None,
         "newest": max(dates).isoformat() if dates else None,

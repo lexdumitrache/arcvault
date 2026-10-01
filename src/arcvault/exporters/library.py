@@ -6,33 +6,36 @@ import json
 from datetime import UTC, datetime
 from html import escape
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from arcvault.exporters import tree_path
+from arcvault.exporters import _folder_path, location_path
 
 if TYPE_CHECKING:
     from arcvault.vault import Library
 
 
-def export_library(lib: Library, out: Path, keep_duplicates: bool = False) -> None:
-    rows = lib.resources if keep_duplicates else lib.unique
+def _loc(path: list[tuple[str, str]], source: str) -> dict[str, Any]:
+    return {"k": [k for k, _ in path], "n": [n for _, n in path], "s": source}
+
+
+def export_library(lib: Library, out: Path) -> None:
     data = [
         {
             "t": r.title or r.url,
             "u": r.url,
             "d": r.domain or "",
-            "p": tree_path(r),
-            "s": r.source_type.value,
             "y": r.resource_type.value if r.resource_type else "unknown",
             "c": r.category or "Other",
-            "f": r.found_in,
             "v": r.when.date().isoformat() if r.when else "",
+            # Every place this resource was saved in Arc.
+            "L": [_loc(location_path(loc), loc.source_type.value) for loc in r.locations],
         }
-        for r in rows
+        for r in lib.unique
     ]
-    # "</" inside a <script> would end it early.
-    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    html = TEMPLATE.replace("__DATA__", payload).replace("__STAMP__", escape(f"{datetime.now(UTC):%Y-%m-%d}"))
+    folders = [_loc(_folder_path(f), f.source_type.value) for f in lib.folders]
+    # "</" inside the inline script would end it early.
+    js = json.dumps({"items": data, "folders": folders}, ensure_ascii=False).replace("</", "<\\/")
+    html = TEMPLATE.replace("__DATA__", js).replace("__STAMP__", escape(f"{datetime.now(UTC):%Y-%m-%d}"))
     out.write_text(html, encoding="utf-8")
 
 
@@ -60,6 +63,7 @@ nav .n{color:var(--mut);font-size:12px;margin-left:4px}
 .r a.t{color:var(--fg);font-weight:550;text-decoration:none}.r a.t:hover{color:var(--acc);text-decoration:underline}
 .meta{color:var(--mut);font-size:12px;margin-top:2px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .chip{background:var(--chip);border-radius:5px;padding:0 6px}
+.locs{display:block}.locs div{margin-top:1px}
 #more{margin:16px 0;padding:8px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--fg);cursor:pointer}
 @media (max-width:760px){main{grid-template-columns:1fr}nav{display:none}header,#list{padding-left:16px;padding-right:16px}}
 </style></head><body>
@@ -75,29 +79,38 @@ nav .n{color:var(--mut);font-size:12px;margin-left:4px}
 </div></header>
 <main><nav id="tree"></nav><section id="list"></section></main>
 <script>
-const DATA=__DATA__;
+const {items:DATA,folders:FOLDERS}=__DATA__;
 const $=id=>document.getElementById(id);
+const SEP='\u0001';
 let folder=null, shown=200;
-const count=(k)=>DATA.reduce((m,r)=>(m[r[k]]=(m[r[k]]||0)+1,m),{});
-function fill(sel,key,label){const c=count(key);Object.keys(c).sort((a,b)=>c[b]-c[a]).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=`${label?label(v):v} (${c[v]})`;sel.appendChild(o)})}
-DATA.forEach(r=>r.sp=r.p[0]);
-fill($('cat'),'c');fill($('typ'),'y',v=>v.replace('_',' '));fill($('spc'),'sp');fill($('src'),'s');
-const domains=Object.keys(count('d')).length;
-$('stats').textContent=`${DATA.length.toLocaleString()} resources · ${domains.toLocaleString()} domains · ${Object.keys(count('sp')).length} spaces`;
-// folder tree
-const root={};DATA.forEach(r=>{let n=root;r.p.forEach(p=>{n[p]=n[p]||{_n:0};n[p]._n++;n=n[p]})});
-function tree(node,path,el){Object.keys(node).filter(k=>k!=='_n').sort().forEach(k=>{const p=[...path,k],kids=Object.keys(node[k]).length>1;
- const a=document.createElement('a');a.innerHTML=`${esc(k)}<span class="n">${node[k]._n}</span>`;a.onclick=e=>{e.preventDefault();folder=p.join('\u0000');document.querySelectorAll('nav .on').forEach(x=>x.classList.remove('on'));a.classList.add('on');shown=200;render()};
- if(kids){const d=document.createElement('details');const s=document.createElement('summary');s.appendChild(a);d.appendChild(s);el.appendChild(d);tree(node[k],p,d)}else el.appendChild(a)})}
-const all=document.createElement('a');all.textContent='All resources';all.className='on';all.onclick=e=>{e.preventDefault();folder=null;document.querySelectorAll('nav .on').forEach(x=>x.classList.remove('on'));all.classList.add('on');render()};
-$('tree').appendChild(all);tree(root,[],$('tree'));
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+const safeUrl=u=>/^(https?|ftp|mailto):/i.test(u);
+DATA.forEach(r=>{r.spaces=[...new Set(r.L.map(l=>l.n[0]))];r.srcs=[...new Set(r.L.map(l=>l.s))];
+  r.keys=r.L.map(l=>l.k.join(SEP)+SEP);r.text=(r.t+' '+r.u+' '+r.L.map(l=>l.n.join(' ')).join(' ')).toLowerCase()});
+function counts(get){const m={};DATA.forEach(r=>[].concat(get(r)).forEach(v=>m[v]=(m[v]||0)+1));return m}
+function fill(sel,c,label){Object.keys(c).sort((a,b)=>c[b]-c[a]).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=`${label?label(v):v} (${c[v]})`;sel.appendChild(o)})}
+fill($('cat'),counts(r=>r.c));fill($('typ'),counts(r=>r.y),v=>v.replace('_',' '));fill($('spc'),counts(r=>r.spaces));fill($('src'),counts(r=>r.srcs));
+const nLoc=DATA.reduce((n,r)=>n+r.L.length,0);
+$('stats').textContent=`${DATA.length.toLocaleString()} resources · ${nLoc.toLocaleString()} saved locations · ${Object.keys(counts(r=>r.d)).length.toLocaleString()} domains`;
+// Folder tree keyed by stable ids, so same-named folders stay separate; seeded so empty folders show.
+const root={c:{},n:new Set()};
+function walk(l,ri){let n=root;l.k.forEach((k,i)=>{n=n.c[k]=n.c[k]||{name:l.n[i],c:{},n:new Set()};if(ri!==undefined)n.n.add(ri)})}
+FOLDERS.forEach(l=>walk(l));
+DATA.forEach((r,ri)=>r.L.forEach(l=>walk(l,ri)));
+function select(el,key){document.querySelectorAll('nav .on').forEach(x=>x.classList.remove('on'));el.classList.add('on');folder=key;shown=200;render()}
+function tree(node,path,el){Object.entries(node.c).forEach(([k,ch])=>{const p=[...path,k];
+ const a=document.createElement('a');a.innerHTML=`${esc(ch.name)}<span class="n">${ch.n.size}</span>`;a.onclick=e=>{e.preventDefault();select(a,p.join(SEP)+SEP)};
+ if(Object.keys(ch.c).length){const d=document.createElement('details');const s=document.createElement('summary');s.appendChild(a);d.appendChild(s);el.appendChild(d);tree(ch,p,d)}else el.appendChild(a)})}
+const all=document.createElement('a');all.textContent='All resources';all.className='on';all.onclick=e=>{e.preventDefault();select(all,null)};
+$('tree').appendChild(all);tree(root,[],$('tree'));
 function render(){
  const terms=$('q').value.toLowerCase().split(/\s+/).filter(Boolean),c=$('cat').value,y=$('typ').value,s=$('spc').value,src=$('src').value;
- const res=DATA.filter(r=>(!c||r.c===c)&&(!y||r.y===y)&&(!s||r.sp===s)&&(!src||r.s===src)&&(!folder||(r.p.join('\u0000')+'\u0000').startsWith(folder+'\u0000'))&&
-   (!terms.length||terms.every(t=>(r.t+' '+r.u+' '+r.p.join(' ')).toLowerCase().includes(t))));
- const L=$('list');L.innerHTML=`<p class="meta">${res.length.toLocaleString()} results</p>`+res.slice(0,shown).map(r=>`<div class="r"><a class="t" href="${esc(r.u)}" target="_blank" rel="noopener noreferrer">${esc(r.t)}</a>
- <div class="meta"><span>${esc(r.d)}</span><span class="chip">${esc(r.y.replace('_',' '))}</span><span class="chip">${esc(r.c)}</span><span>${esc(r.p.join(' › '))}</span>${r.v?`<span>${r.v}</span>`:''}${r.f.length>1?`<span title="${esc(r.f.join('\n'))}">· in ${r.f.length} places</span>`:''}</div></div>`).join('');
+ const res=DATA.filter(r=>(!c||r.c===c)&&(!y||r.y===y)&&(!s||r.spaces.includes(s))&&(!src||r.srcs.includes(src))&&
+   (!folder||r.keys.some(k=>k.startsWith(folder)))&&(!terms.length||terms.every(t=>r.text.includes(t))));
+ const L=$('list');L.innerHTML=`<p class="meta">${res.length.toLocaleString()} results</p>`+res.slice(0,shown).map(r=>{
+  const title=safeUrl(r.u)?`<a class="t" href="${esc(r.u)}" target="_blank" rel="noopener noreferrer">${esc(r.t)}</a>`:`<span class="t">${esc(r.t)}</span> <span class="meta">${esc(r.u)}</span>`;
+  const locs=r.L.map(l=>`<div>${esc(l.n.join(' › '))} <span class="chip">${esc(l.s)}</span></div>`).join('');
+  return `<div class="r">${title}<div class="meta"><span>${esc(r.d)}</span><span class="chip">${esc(r.y.replace('_',' '))}</span><span class="chip">${esc(r.c)}</span>${r.v?`<span>${r.v}</span>`:''}</div><div class="meta locs">${locs}</div></div>`}).join('');
  if(res.length>shown){const b=document.createElement('button');b.id='more';b.textContent=`Show more (${res.length-shown} left)`;b.onclick=()=>{shown+=500;render()};L.appendChild(b)}
 }
 ['q','cat','typ','spc','src'].forEach(id=>$(id).addEventListener('input',()=>{shown=200;render()}));

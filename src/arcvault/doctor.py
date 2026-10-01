@@ -49,9 +49,6 @@ def run_checks(arc_path: str | None, output: Path) -> list[Check]:
     else:
         out.append((False, "History database readable", "no History files found"))
 
-    out.append((bool(inst.session_sources), "Session files detected",
-                f"{len(inst.session_sources)} files"))  # fmt: skip
-
     probe = output
     while not probe.exists() and probe != probe.parent:
         probe = probe.parent

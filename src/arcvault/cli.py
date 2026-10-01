@@ -18,16 +18,19 @@ from rich.progress import Progress
 from rich.table import Table
 
 from arcvault import __version__
-from arcvault.config import load_config
+from arcvault.config import config_path, data_dir, load_config
 from arcvault.errors import ArcVaultError
 from arcvault.vault import ArcVault, Library
 
 app = typer.Typer(
-    help="Export, preserve, search, recover and organize your Arc browser library.",
+    help="Export and organize everything you saved in Arc. Run [bold]arcvault export[/bold] to start.",
     no_args_is_help=False,
     add_completion=False,
     rich_markup_mode="rich",
+    # Tracebacks must never print local variables: they can hold URLs, titles or API keys.
+    pretty_exceptions_show_locals=False,
 )
+MAIN, RECOVERY, EXPLORE, ADVANCED, DIAG = "Main", "Recovery", "Explore", "Advanced", "Diagnostics"
 console = Console()
 err = Console(stderr=True)
 log = logging.getLogger("arcvault")
@@ -91,7 +94,7 @@ def fail(e: Exception) -> None:
     raise typer.Exit(1)
 
 
-def scan(history: bool = False, sessions: bool = False, banner: bool = True) -> Library:
+def scan(archive: bool = False, history: bool = False, banner: bool = True) -> Library:
     try:
         vault = ArcVault.discover(state.arc_path, state.config)
     except ArcVaultError as e:
@@ -100,9 +103,9 @@ def scan(history: bool = False, sessions: bool = False, banner: bool = True) -> 
     if banner:
         state.say(Panel.fit("[bold]ArcVault[/bold]\nYour Arc library, liberated", border_style="blue"))
         v = f" (Arc {vault.installation.version})" if vault.installation.version else ""
-        state.say(f"Arc installation found{v}.\n\nScanning Arc library...\n")
+        state.say(f"Arc installation found{v}.\n")
     with console.status("Reading Arc data...", spinner="dots") if not state.quiet else _null():
-        lib = vault.scan(history=history, sessions=sessions)
+        lib = vault.scan(archive=archive, history=history)
     if banner:
         for rep in lib.reports:
             mark = "[green]✓[/green]" if rep.ok else "[yellow]–[/yellow]"
@@ -124,49 +127,78 @@ class _null:
 
 
 def _summary(lib: Library) -> None:
-    from arcvault.models import SourceType as S
     from arcvault.stats import compute_stats
 
     s = compute_stats(lib)
     src = s["sources"]
     t = Table.grid(padding=(0, 3))
-    for label, val in [
-        ("Spaces", s["spaces"]), ("Folders", s["folders"]),
-        ("Saved tabs", sum(src.get(x.value, 0) for x in (S.PINNED, S.FAVORITE, S.UNPINNED))),
+    rows = [
+        ("Spaces", s["spaces"]), ("Folders", s["folders"]), ("Favorites", src.get("favorite", 0)),
+        ("Saved tabs", src.get("pinned", 0)), ("Unique URLs", s["unique_resources"]),
+        ("Saved in 2+ places", s["saved_in_multiple_places"]),
+        ("Today tabs", src.get("unpinned", 0) + src.get("unknown", 0)),
         ("Archived tabs", src.get("archived", 0)), ("History", src.get("history", 0)),
-        ("Session", src.get("session", 0)),
-        ("Unique URLs", s["unique_resources"]), ("Duplicates", s["duplicates"]),
-    ]:  # fmt: skip
-        if val or label in ("Spaces", "Unique URLs", "Duplicates"):
-            t.add_row(label, f"[bold]{val:,}[/bold]")
+    ]  # fmt: skip
+    for label, val in rows[:6] + [r for r in rows[6:] if r[1]]:
+        t.add_row(label, f"[bold]{val:,}[/bold]")
     state.say(t)
     state.say("")
+
+
+def _print_stats(lib: Library) -> None:
+    from arcvault.stats import compute_stats
+
+    s = compute_stats(lib)
+
+    def section(title: str, rows: dict[str, Any] | list[tuple[str, Any]]) -> None:
+        t = Table(title=title, title_justify="left", show_header=False, box=None, padding=(0, 2))
+        t.add_column(min_width=24)
+        t.add_column(justify="right")
+        for k, v in rows.items() if isinstance(rows, dict) else rows:
+            t.add_row(str(k), f"{v:,}" if isinstance(v, int) else str(v))
+        console.print(t)
+        console.print()
+
+    section("Saved", [("Saved locations", s["saved_locations"]), ("Oldest", (s["oldest"] or "–")[:10]),
+                      ("Newest", (s["newest"] or "–")[:10])])  # fmt: skip
+    section("Per space", s["per_space"])
+    section("Resource types", s["types"])
+    section("Top categories", s["categories"])
+    section("Top domains", s["domains"])
+    section("Top folders", s["top_folders"])
 
 
 # --- export -------------------------------------------------------------------
 
 
-@app.command()
+@app.command(rich_help_panel=MAIN)
 def export(
     fmt: Annotated[
         list[str] | None,
-        typer.Option("--format", "-f", help="json, csv, markdown, html, library, kb, or 'all'. Repeatable."),
+        typer.Option("--format", "-f", help="json, csv, markdown, html (bookmarks), library, or 'all'."),
     ] = None,
-    all_sources: Annotated[
-        bool, typer.Option("--all", help="Include browsing history and session data.")
+    archive: Annotated[
+        bool, typer.Option("--archive", help="Also include auto-archived and Today tabs.")
     ] = False,
-    history: Annotated[bool, typer.Option("--history", help="Include browsing history.")] = False,
-    sessions: Annotated[bool, typer.Option("--sessions", help="Include session data.")] = False,
-    keep_duplicates: Annotated[bool, typer.Option("--keep-duplicates", help="Export every record.")] = False,
-    enrich: Annotated[bool, typer.Option("--enrich", help="Fetch page metadata (network!).")] = False,
-    enrich_limit: Annotated[int | None, typer.Option(help="Max resources to enrich.")] = None,
+    stats: Annotated[bool, typer.Option("--stats", help="Also print detailed statistics.")] = False,
+    history: Annotated[
+        bool, typer.Option("--history", help="Include raw browsing history.", rich_help_panel=ADVANCED)
+    ] = False,
+    enrich: Annotated[
+        bool, typer.Option("--enrich", help="Fetch page metadata (network!).", rich_help_panel=ADVANCED)
+    ] = False,
+    enrich_limit: Annotated[
+        int | None, typer.Option(help="Max resources to enrich.", rich_help_panel=ADVANCED)
+    ] = None,
 ) -> None:
-    """Export your Arc library (default: JSON, CSV, Markdown, bookmarks HTML)."""
+    """Export your Arc library: everything saved in your sidebar, in every Space and folder."""
     from arcvault.exporters import DEFAULT_FORMATS, FORMATS
     from arcvault.exporters import export as do_export
 
-    lib = scan(history or all_sources, sessions or all_sources)
+    lib = scan(archive, history)
     _summary(lib)
+    if stats:
+        _print_stats(lib)
     if enrich or state.config.get("metadata", {}).get("enrich"):
         _enrich(lib, enrich_limit)
 
@@ -174,14 +206,16 @@ def export(
     if "all" in fmts:
         fmts = list(FORMATS)
     out = state.out_dir()
-    state.say(f"Exporting library to [bold]{out}[/bold]\n")
+    state.say(f"Exporting to [bold]{out}[/bold]\n")
     try:
         for f in fmts:
-            p = do_export(lib, f, out, keep_duplicates=keep_duplicates)
+            p = do_export(lib, f, out)
             state.say(f"  [green]✓[/green] {p.name}")
     except ArcVaultError as e:
         fail(e)
     state.say("\nDone.")
+    if not archive:
+        state.say("[dim]Tip: `arcvault recover` exports tabs Arc has auto-archived.[/dim]")
 
 
 def _enrich(lib: Library, limit: int | None) -> None:
@@ -198,67 +232,46 @@ def _enrich(lib: Library, limit: int | None) -> None:
     state.say(f"Enriched {n:,} new resources.\n")
 
 
-# --- stats --------------------------------------------------------------------
+# --- recover ------------------------------------------------------------------
 
 
-@app.command()
-def stats(
-    all_sources: Annotated[bool, typer.Option("--all", help="Include history and sessions.")] = False,
-    as_json: Annotated[bool, typer.Option("--json", help="Machine-readable output.")] = False,
+@app.command(rich_help_panel=RECOVERY)
+def recover(
+    fmt: Annotated[list[str] | None, typer.Option("--format", "-f")] = None,
+    history: Annotated[
+        bool, typer.Option("--history", help="Also recover raw browsing history.", rich_help_panel=ADVANCED)
+    ] = False,
 ) -> None:
-    """Statistics about your Arc library."""
-    from arcvault.stats import compute_stats
+    """Recover tabs that are no longer saved in your sidebar (auto-archived and Today tabs)."""
+    from collections import Counter
 
-    lib = scan(all_sources, all_sources, banner=False)
-    s = compute_stats(lib)
-    if as_json:
-        print(json.dumps(s, indent=2))
-        return
+    from arcvault.exporters import export as do_export
 
-    def section(title: str, rows: dict[str, Any] | list[tuple[str, Any]]) -> None:
-        t = Table(title=title, title_justify="left", show_header=False, box=None, padding=(0, 2))
-        t.add_column(min_width=24)
-        t.add_column(justify="right")
-        for k, v in rows.items() if isinstance(rows, dict) else rows:
-            t.add_row(str(k), f"{v:,}" if isinstance(v, int) else str(v))
-        console.print(t)
-        console.print()
-
-    console.print("[bold]ARCVAULT LIBRARY[/bold]\n")
-    section("Resources", [("Total records", s["total_records"]), ("Unique URLs", s["unique_resources"]),
-                          ("Duplicates", s["duplicates"]), ("Spaces", s["spaces"]),
-                          ("Folders", s["folders"]), ("Oldest", (s["oldest"] or "–")[:10]),
-                          ("Newest", (s["newest"] or "–")[:10])])  # fmt: skip
-    section("Sources", s["sources"])
-    section("Per space", s["per_space"])
-    section("Resource types", s["types"])
-    section("Top categories", s["categories"])
-    section("Top domains", s["domains"])
-    section("Top folders", s["top_folders"])
+    lib = scan(archive=True, history=history)
+    # Recoverable = no copy of it is saved in the sidebar any more.
+    rec = [r for r in lib.unique if not r.source_type.is_library]
+    sub = Library(
+        resources=rec,
+        spaces=lib.spaces,
+        folders=[f for f in lib.folders if not f.source_type.is_library],
+        reports=lib.reports,
+        arc_version=lib.arc_version,
+    )
+    labels = {"unpinned": "today", "unknown": "unreachable"}
+    for k, v in Counter(r.source_type.value for r in rec).most_common():
+        state.say(f"  {labels.get(k, k):<12} {v:,}")
+    state.say(f"\n[bold]{len(rec):,}[/bold] resources not saved in your sidebar.\n")
+    out = state.out_dir() / "recovered"
+    state.say(f"Writing to [bold]{out}[/bold]")
+    for f in fmt or ["json", "markdown", "library"]:
+        p = do_export(sub, f, out)
+        state.say(f"  [green]✓[/green] {p.name}")
 
 
-# --- search & index -----------------------------------------------------------
+# --- search -------------------------------------------------------------------
 
 
-@app.command()
-def index(
-    rebuild: Annotated[bool, typer.Option("--rebuild", help="Rebuild from current Arc data.")] = False,
-    all_sources: Annotated[bool, typer.Option("--all", help="Include history and sessions.")] = False,
-) -> None:
-    """Build the local search index (~/.arcvault/index.db)."""
-    from arcvault.search import build_index, index_info, index_path
-
-    info = index_info()
-    if info and not rebuild:
-        state.say(f"Index: {index_path()}\n  {int(info['count']):,} resources, built {info['built_at'][:19]}")
-        state.say("Use --rebuild to refresh it.")
-        return
-    lib = scan(all_sources, all_sources, banner=False)
-    n = build_index(lib)
-    state.say(f"[green]✓[/green] Indexed {n:,} resources → {index_path()}")
-
-
-@app.command()
+@app.command(rich_help_panel=EXPLORE)
 def search(
     query: Annotated[str, typer.Argument(help="Search terms.")] = "",
     space: Annotated[str | None, typer.Option(help="Space name contains.")] = None,
@@ -270,16 +283,35 @@ def search(
     after: Annotated[datetime | None, typer.Option(help="Visited/created after (YYYY-MM-DD).")] = None,
     before: Annotated[datetime | None, typer.Option(help="Visited/created before (YYYY-MM-DD).")] = None,
     limit: Annotated[int, typer.Option("--limit", "-n")] = 20,
-    as_json: Annotated[bool, typer.Option("--json")] = False,
+    archive: Annotated[
+        bool, typer.Option("--archive", help="Also search auto-archived and Today tabs.")
+    ] = False,
+    history: Annotated[
+        bool, typer.Option("--history", help="Also search raw browsing history.", rich_help_panel=ADVANCED)
+    ] = False,
+    reindex: Annotated[
+        bool, typer.Option("--reindex", help="Force a rebuild of the index.", rich_help_panel=ADVANCED)
+    ] = False,
+    as_json: Annotated[bool, typer.Option("--json", rich_help_panel=ADVANCED)] = False,
 ) -> None:
-    """Search your library (builds the index on first use)."""
-    from arcvault.search import build_index, index_info, query_index
+    """Search your library. The local index is (re)built automatically when Arc data changes."""
+    from arcvault.arc.discovery import discover
+    from arcvault.search import build_index, index_is_stale, query_index
 
     if type_ in ("repo", "github"):
         type_ = "github_repository"
-    if not index_info():
-        state.say("[dim]Building search index (first run)...[/dim]")
-        build_index(scan(banner=False))
+    scope = "+".join(["library", *(["archive"] if archive else []), *(["history"] if history else [])])
+    try:
+        inst = discover(state.arc_path)
+    except ArcVaultError as e:
+        fail(e)
+        return
+    inputs = [p for p in [inst.sidebar_path, *inst.archive_sources] if p]
+    inputs += [config_path(), data_dir() / "ai_categories.json"]
+    inputs += list(inst.history_paths.values()) if history else []
+    if reindex or index_is_stale(scope, inputs):
+        state.say("[dim]Updating search index...[/dim]")
+        build_index(scan(archive, history, banner=False), scope=scope)
     filters: dict[str, Any] = dict(space=space, folder=folder, category=category, type=type_, domain=domain,
                    source=source, after=after, before=before)  # fmt: skip
     res = query_index(query, limit=limit, **filters)
@@ -291,31 +323,39 @@ def search(
         t = r.resource_type.value.replace("_", " ").title() if r.resource_type else ""
         console.print(f"{i}. [bold]{_esc(r.title or r.url)}[/bold]")
         console.print(f"   [dim]{t} · {r.category or ''}[/dim]")
-        console.print(
-            f"   {_esc(' > '.join(p for p in [r.space, *r.folder_path] if p) or r.source_type.value)}"
-        )
+        console.print("   " + _esc("; ".join(loc.label for loc in r.locations) or r.source_type.value))
         console.print(f"   [link={r.url}][blue]{_esc(r.url[:100])}[/blue][/link]\n")
-    if not res:
-        console.print("[dim]Tip: run `arcvault index --rebuild --all` to include history.[/dim]")
+    if not res and not archive:
+        console.print("[dim]Tip: add --archive to also search auto-archived tabs.[/dim]")
 
 
 # --- organize -----------------------------------------------------------------
 
 
-@app.command()
+@app.command(rich_help_panel=MAIN)
 def organize(
-    ai: Annotated[str | None, typer.Option("--ai", help="AI provider: anthropic, openai, ollama.")] = None,
-    model: Annotated[str | None, typer.Option(help="Model name for the AI provider.")] = None,
-    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip the cloud upload confirmation.")] = False,
-    all_sources: Annotated[bool, typer.Option("--all", help="Include history and sessions.")] = False,
-    write: Annotated[bool, typer.Option("--write", help="Also write the Markdown knowledge base.")] = False,
+    write: Annotated[bool, typer.Option("--write", help="Also write a Markdown folder per topic.")] = False,
+    archive: Annotated[
+        bool,
+        typer.Option("--archive", help="Include auto-archived and Today tabs.", rich_help_panel=ADVANCED),
+    ] = False,
+    ai: Annotated[
+        str | None,
+        typer.Option("--ai", help="AI provider: anthropic, openai, ollama.", rich_help_panel=ADVANCED),
+    ] = None,
+    model: Annotated[
+        str | None, typer.Option(help="Model name for the AI provider.", rich_help_panel=ADVANCED)
+    ] = None,
+    yes: Annotated[
+        bool, typer.Option("--yes", "-y", help="Skip the cloud confirmation.", rich_help_panel=ADVANCED)
+    ] = False,
 ) -> None:
-    """Organize resources into topic categories (rules offline; AI optional)."""
+    """Group your library into topic categories (offline rules; no API key needed)."""
     from collections import Counter
 
     from arcvault.processing.organize import categories_from_config
 
-    lib = scan(all_sources, all_sources, banner=False)
+    lib = scan(archive, banner=False)
     if ai:
         from arcvault.ai import classify_with_ai, get_provider
 
@@ -350,44 +390,17 @@ def organize(
         t.add_row(cat, f"{n:,}", _esc(" · ".join(ex)))
     console.print(t)
     if write:
-        from arcvault.exporters import export as do_export
+        from arcvault.exporters import export_knowledge_base
 
-        kb = do_export(lib, "kb", state.out_dir() / "knowledge-base")
-        state.say(f"\n[green]✓[/green] {kb}")
-
-
-# --- recover ------------------------------------------------------------------
-
-
-@app.command()
-def recover(
-    fmt: Annotated[list[str] | None, typer.Option("--format", "-f")] = None,
-) -> None:
-    """Recover resources that are NOT in your sidebar (archived, session, history)."""
-    from arcvault.exporters import export as do_export
-    from arcvault.models import SourceType as S
-
-    lib = scan(history=True, sessions=True)
-    gone = {S.ARCHIVED, S.SESSION, S.HISTORY}
-    # A resource is "recoverable" if no copy of it is still saved in the sidebar.
-    rec = [r for r in lib.unique if r.source_type in gone]
-    sub = Library(resources=rec, spaces=lib.spaces, arc_version=lib.arc_version)
-    from collections import Counter
-
-    for k, v in Counter(r.source_type.value for r in rec).most_common():
-        state.say(f"  {k:<10} {v:,}")
-    state.say(f"\n[bold]{len(rec):,}[/bold] resources not saved in your sidebar.\n")
-    out = state.out_dir() / "recovered"
-    state.say(f"Writing to [bold]{out}[/bold]")
-    for f in fmt or ["json", "markdown", "html"]:
-        p = do_export(sub, f, out)
-        state.say(f"  [green]✓[/green] {p.name}")
+        out = state.out_dir() / "topics"
+        export_knowledge_base(lib, out)
+        state.say(f"\n[green]✓[/green] {out}")
 
 
 # --- inspect / doctor ---------------------------------------------------------
 
 
-@app.command("inspect")
+@app.command("inspect", rich_help_panel=DIAG)
 def inspect_cmd(
     sanitize: Annotated[
         bool, typer.Option("--sanitize", help="Emit sanitized structure (safe to share).")
@@ -411,7 +424,6 @@ def inspect_cmd(
         "sidebar": bool(inst.sidebar_path),
         "archive": [p.name for p in inst.archive_sources],
         "history_profiles": list(inst.history_paths),
-        "session_files": len(inst.session_sources),
     }
     if sanitize:
         archive = read_json(inst.archive_sources[0]) if inst.archive_sources else None
@@ -436,7 +448,7 @@ def inspect_cmd(
         console.print(f"[yellow]Warning:[/yellow] {w}")
 
 
-@app.command()
+@app.command(rich_help_panel=DIAG)
 def doctor() -> None:
     """Check that ArcVault can read your Arc data."""
     from arcvault.doctor import run_checks

@@ -6,10 +6,6 @@ _Exported from synthetic test fixtures_
 
 - [My Example](https://example.com/?utm_source=x)
 
-### Today
-
-- [A story](https://news.example.org/story)
-
 ### Learning
 
 #### Artificial Intelligence
@@ -24,12 +20,6 @@ _Exported from synthetic test fixtures_
 
 - [Mail](https://mail.example.com/)
 
-### Archived
+## Research
 
-- [Archived A1](https://archived.example.com/a)
-
-## Unsorted
-
-### Archived
-
-- [Archived A3](https://other.example.com/)
+- [1706.03762.pdf](https://arxiv.org/pdf/1706.03762)

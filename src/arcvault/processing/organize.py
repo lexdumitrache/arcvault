@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-from arcvault.models import Classification, Resource, ResourceType
+from arcvault.models import Classification, Resource, ResourceType, locations_text
 
 # Keyword lists are matched as whole words against title, URL, domain, folder and Space.
 DEFAULT_CATEGORIES: dict[str, list[str]] = {
@@ -80,9 +80,9 @@ class RuleOrganizer:
         }
 
     def classify(self, r: Resource) -> Classification:
-        # Folder and Space names are the user's own organization, so weight them highest.
+        # Folder and Space names (across every saved location) are the user's own organization.
         fields = [
-            (" ".join([r.space or "", *r.folder_path]).lower(), 2.0),
+            (locations_text(r).lower(), 2.0),
             ((r.title or "").lower(), 1.5),
             (r.url.lower().replace("-", " ").replace("_", " "), 1.0),
         ]

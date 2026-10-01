@@ -2,62 +2,119 @@
 
 > Export, preserve, search, recover, and organize your Arc browser library.
 
-This file is the source of truth for the repository. Section 0 records what the
-implementation found and decided. Sections 1–52 are the original specification.
+This file is the source of truth for the repository.
+
+- **Part A** (product decisions, 2026-10-01) defines what ArcVault is. Where it conflicts with Part C, Part A wins.
+- **Part B** records verified facts about Arc's storage format.
+- **Part C** is the original full specification, kept as historical reference. It lists every *possible* capability; that does not make them equally important. Some of its features have since been removed on purpose (see A5).
 
 ---
 
-# 0. Implementation notes (keep updated)
+# PART A — Product
 
-## Arc data format: verified on Arc 1.165.1 / macOS
+## A1. Product goal
+
+> Export, preserve and organize everything you intentionally saved in Arc into a clean, portable personal library.
+
+ArcVault is not a browser-forensics or knowledge-management platform. Correctness, simplicity, privacy and usefulness come before feature count.
+
+The main experience is:
+
+```bash
+pipx install arcvault
+arcvault export
+arcvault organize      # optional
+```
+
+A user should not need to understand Arc internals, SQLite, AI providers or enrichment.
+
+## A2. Core library: what `arcvault export` contains
+
+Everything intentionally saved in the Arc sidebar, in every Space:
+
+- pinned tabs, tabs in folders, tabs in nested folders (any depth)
+- favorites (per profile)
+
+Rules:
+
+1. **All saved items are equal.** Favorite, pinned, folder and Space status is organizational metadata, never an importance score. There is no source-priority ranking among library items. The canonical record of a duplicate group is simply the first library record in scan (sidebar) order.
+2. **Every location is preserved.** A deduplicated `Resource` carries `locations: list[Location]` with one entry per original Arc item. Each entry has that item's own URL, title, Space, folder path, folder ids and timestamps. Invariant (tested, and checked on real data): `sum(len(r.locations) for r in unique) == number of extracted records`.
+3. **The hierarchy is exported faithfully.** Markdown, bookmarks and the HTML library place a resource at every location. Folders are keyed by Arc folder id, so same-named sibling folders stay separate, and empty folders are kept.
+4. **Read-only and offline.** No network, no API keys, no writes to Arc's directory.
+
+Core formats (`arcvault export` default): JSON (lossless), CSV, Markdown, Netscape bookmarks, standalone HTML library.
+
+## A3. Recovery data: kept separate from the library
+
+| Data | How to get it | Status |
+|---|---|---|
+| Auto-archived / closed tabs (`StorableArchiveItems.json`) | `arcvault recover`, or `export --archive` | Easy to reach |
+| Today tabs (sidebar `unpinned` container; transient, auto-archive) | same as above | Easy to reach |
+| Sidebar tabs not reachable from any Space or favorites | same as above | Easy to reach |
+| Raw browsing history | `recover --history` | Advanced |
+
+`recover` exports only resources that are **not** saved in the library any more.
+
+## A4. Core features to emphasize
+
+Automatic Arc discovery · read-only operation · Spaces · folders and nested folders · favorites · saved sidebar tabs · hierarchy preservation · auto-archive recovery · conservative URL normalization · deduplication with provenance · offline resource-type classification · lightweight topic organization · JSON / CSV / Markdown / bookmarks / HTML library exports · privacy · sanitized diagnostics · tests and CI.
+
+## A5. Advanced / optional (kept, but must not define the project)
+
+Raw history · `search` (SQLite/FTS index, rebuilt automatically when Arc data changes) · `export --stats` · metadata enrichment (web, GitHub, YouTube, arXiv) · AI classification (Anthropic, OpenAI, Ollama) · `organize --write` (one Markdown folder per topic).
+
+### Removed on purpose (2026-10-01): don't re-add without a strong reason
+
+| Removed | Why | Replacement |
+|---|---|---|
+| Session-file (SNSS) recovery | Fragile binary "session archaeology"; little value beyond the archive | Archive + `--history` |
+| `index` command | Duplicated `search`, and left a stale index | `search` rebuilds automatically; `--reindex` forces it |
+| `stats` command | Overlapped with the export summary | `export --stats` |
+| `--keep-duplicates` | Redundant now that every resource carries all its `locations` | JSON/CSV `locations` |
+| `kb` export format | Duplicated `organize --write` | `organize --write` |
+
+In the CLI these sit in "Advanced" help panels. In the README they sit in an "Advanced features" section. Never lead with them.
+
+## A6. Architecture guidance
+
+Keep the normalized `Resource`/`Location` model and the extraction → processing → export separation. Don't add abstractions just because another browser might be supported someday: ArcVault is an Arc tool. Prefer the standard library. The only runtime dependencies are typer and rich.
+
+## A7. Normalization and dedup safety rules
+
+- Normalization may only change things that cannot point at a different page: scheme and host case, default port, trailing slash, known tracking parameters (`utm_*`, `fbclid`, `gclid`, …), an empty `#`.
+- **Fragments are kept.** Gmail, Google Docs/Sheets (`#gid=`) and single-page apps route with them. Dropping them merged 214 groups of different URLs in the real-data audit.
+- **Query strings are never decoded or re-encoded.** Tracking parameters are removed from the raw string.
+- Identity merges (same arXiv paper, YouTube video, GitHub repo, DOI) are allowed because each location keeps its exact original URL. YouTube `t=`/`list=` and arXiv `vN` differences are merged on purpose.
+
+## A8. Claims policy
+
+The README only claims what has been verified. "Checked on real data" currently means one Arc 1.165.1 install on macOS. Browser import of `bookmarks.html` has not been tested.
+
+---
+
+# PART B — Implementation discoveries (Arc 1.165.1, macOS)
 
 Full details are in `docs/arc-data.md`. Summary:
 
-- `StorableSidebar.json` holds two copies of the item graph: a local one
-  (`sidebar.containers[1]`) and a sync one (`sidebarSyncState`). Swift
-  dictionaries are encoded as flat `[key, value, …]` lists. Node kinds are
-  `tab`, `list` (folder), `itemContainer` (Space pinned/unpinned roots and
-  per-profile favorites) and `splitView`.
-- Archived tabs are in `StorableArchiveItems.json`, with `reason` (manual/auto)
-  and `source` (space/littleArc/unknown). `StorableArchive.json` is an empty stub.
-- History is Chromium SQLite, one file per profile. Each Space maps to a profile
-  through `space.profile`.
-- Sessions are Chromium SNSS binaries. Navigations are found by validating the
-  payload instead of trusting command ids.
+- `StorableSidebar.json` holds two copies of the item graph: a local one (`sidebar.containers[1]`) and a sync one (`sidebarSyncState`). They were identical on the test machine. Swift dictionaries are encoded as flat `[key, value, …]` lists. Node kinds: `tab`, `list` (folder), `itemContainer` (Space pinned/unpinned roots and per-profile favorites), `splitView`.
+- Sibling folders can share a name, so folders must be keyed by id.
+- Favorites are per profile. A profile can have favorites without any Space using it.
+- Archived tabs are in `StorableArchiveItems.json`, with `reason` (manual/auto) and `source` (space/littleArc/unknown). They have no folder path, and some have an empty URL. `StorableArchive.json` is an empty stub.
+- History is Chromium SQLite, one file per profile. A Space maps to a profile through `space.profile`. History and favorites are attributed to a Space only when exactly one Space uses that profile.
+- Sessions are Chromium SNSS binaries. Navigations can be found by validating the payload instead of trusting command ids. (Not used any more; see A5.)
 - Timestamps: Arc uses seconds since 2001-01-01; Chromium uses microseconds since 1601-01-01.
 
-## Decisions that refine the spec
+## Technical decisions
 
-- **`SourceType.UNPINNED`** was added for Arc's "Today" tabs. They are open but
-  not saved, which makes them different from both PINNED and SESSION.
-- **The default scan covers the sidebar and archive.** History and sessions
-  are opt-in (`--all`, `--history`, `--sessions`) because they make up about 90% of
-  the records and are mostly noise. `arcvault recover` always includes them.
-- **Only two runtime dependencies (typer, rich).** Dataclasses replace pydantic,
-  urllib replaces httpx, `html.parser` replaces bs4, and `tomllib` is used for
-  config. Config lives at `$XDG_CONFIG_HOME/arcvault/config.toml` (default
-  `~/.config`) and state at `~/.arcvault`, so platformdirs isn't needed.
-- **`models/`, `enrichment/` and `ai/` are single modules** (`models.py`,
-  `enrichment.py`, `ai.py`). Each is small enough that a package adds nothing.
-  Exporters are one module plus `exporters/library.py` for the HTML template.
-- **The canonical duplicate** is the copy from the most deliberate source
-  (pinned > favorite > today > archived > history > session). Its `found_in`
-  lists every location.
-- **JSON export is always lossless.** It includes duplicates, flagged with
-  `duplicate_of`. Other formats are consolidated unless `--keep-duplicates` is passed.
-- **AI categories are cached** in `~/.arcvault/ai_categories.json` and reused by
-  later scans. AI providers: `anthropic`, `openai`, `ollama` (local); the last two
-  share an OpenAI-compatible client.
-- **The CLI entry point** is `arcvault.cli:main`, a wrapper around the Typer app that turns typed errors into clean messages.
-
-## Status against the definition of done (§49)
-
-Items 1–22 are implemented and tested on synthetic fixtures. Items 1–17, 20 and
-22 were also checked against real Arc data. Enrichment and AI (18–19) are tested
-offline with the network stubbed and have not been run against live services.
-Not done: Arc for Windows (unverified) and PyPI publication.
+- `SourceType.UNPINNED` exists for Today tabs; `SourceType.is_library` separates library from recovery.
+- Single modules where a package adds nothing (`models.py`, `enrichment.py`, `ai.py`). Exporters are one module plus `exporters/library.py`.
+- The JSON export (v2.0) has one entry per unique resource with all its `locations`. CSV is one row per unique resource, with a `locations` column.
+- AI categories are cached in `~/.arcvault/ai_categories.json` and reused by later scans.
+- The CLI entry point is `arcvault.cli:main`. Tracebacks never show local variables.
 
 ---
+
+# PART C — Original specification (historical reference)
 
 # 1. Vision
 

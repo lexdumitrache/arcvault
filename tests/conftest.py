@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import shutil
 import sqlite3
-import struct
 from pathlib import Path
 from typing import Any
 
@@ -37,28 +36,6 @@ def make_history(path: Path) -> None:
     con.close()
 
 
-def snss_nav(url: str, title: str) -> bytes:
-    def s(b: bytes) -> bytes:
-        return struct.pack("<i", len(b)) + b + b"\0" * (-len(b) % 4)
-
-    t = title.encode("utf-16-le")
-    body = (
-        struct.pack("<ii", 1, 0) + s(url.encode()) + struct.pack("<i", len(title)) + t + b"\0" * (-len(t) % 4)
-    )
-    payload = struct.pack("<I", len(body)) + body
-    return struct.pack("<HB", len(payload) + 1, 6) + payload
-
-
-def make_session(path: Path) -> None:
-    junk = struct.pack("<HB", 5, 9) + b"\x01\x02\x03\x04"
-    path.write_bytes(
-        b"SNSS" + struct.pack("<i", 3) + junk
-        + snss_nav("https://session.example.com/page", "Session page")
-        + snss_nav("https://session.example.com/page", "Session page")  # rewritten nav
-        + snss_nav("chrome://newtab/", "New Tab")
-    )  # fmt: skip
-
-
 @pytest.fixture
 def arc_dir(tmp_path: Path) -> Path:
     """A fake Arc data directory built from synthetic fixtures."""
@@ -67,10 +44,8 @@ def arc_dir(tmp_path: Path) -> Path:
     shutil.copy(FIX / "sidebar_nested.json", root / "StorableSidebar.json")
     shutil.copy(FIX / "archive.json", root / "StorableArchiveItems.json")
     for prof in ("Default", "Profile 1"):
-        d = root / "User Data" / prof / "Sessions"
-        d.mkdir(parents=True)
+        (root / "User Data" / prof).mkdir(parents=True)
     make_history(root / "User Data" / "Default" / "History")
-    make_session(root / "User Data" / "Default" / "Sessions" / "Session_1")
     return root
 
 

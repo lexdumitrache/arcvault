@@ -19,8 +19,18 @@ from arcvault.processing.organize import RuleOrganizer, categories_from_config
         ("http://example.com:8080/a", "http://example.com:8080/a"),
         ("https://e.com/a?utm_source=x&utm_medium=y&id=5", "https://e.com/a?id=5"),
         ("https://e.com/a?fbclid=1&gclid=2", "https://e.com/a"),
-        ("https://e.com/a#section", "https://e.com/a"),
+        # Fragments are kept: apps route with them, so dropping them merges different pages.
+        ("https://e.com/a#section", "https://e.com/a#section"),
         ("https://app.e.com/#/inbox", "https://app.e.com#/inbox"),
+        ("https://mail.google.com/mail/u/0/#inbox/AAA", "https://mail.google.com/mail/u/0#inbox/AAA"),
+        (
+            "https://docs.google.com/spreadsheets/d/X/edit#gid=5",
+            "https://docs.google.com/spreadsheets/d/X/edit#gid=5",
+        ),
+        ("https://e.com/a#", "https://e.com/a"),
+        # Query strings are never decoded/re-encoded; only tracking params are dropped.
+        ("https://e.com/s?q=a%20b&flag&utm_source=x", "https://e.com/s?q=a%20b&flag"),
+        ("https://open.spotify.com/track/1?si=abc", "https://open.spotify.com/track/1?si=abc"),
         ("https://e.com/search?q=a+b&page=2", "https://e.com/search?q=a+b&page=2"),
         ("mailto:x@y.z", "mailto:x@y.z"),
     ],
@@ -57,34 +67,39 @@ def r(id: str, url: str, src: SourceType = SourceType.PINNED, **kw: object) -> R
     return res
 
 
-def test_dedup_preserves_provenance() -> None:
+def test_dedup_preserves_every_location() -> None:
     items = [
         r("h", "https://arxiv.org/abs/1706.03762v5", SourceType.HISTORY),
-        r(
-            "a",
-            "https://arxiv.org/pdf/1706.03762",
-            SourceType.PINNED,
-            space="Personal",
-            folder_path=["Papers"],
-        ),
-        r(
-            "b",
-            "https://arxiv.org/abs/1706.03762",
-            SourceType.PINNED,
-            space="Research",
-            folder_path=["Transformers"],
-        ),
+        r("f", "https://arxiv.org/abs/1706.03762", SourceType.FAVORITE, title="Fav title"),
+        r("a", "https://arxiv.org/pdf/1706.03762", SourceType.PINNED, space="Personal",
+          folder_path=["Papers"], folder_ids=["F1"]),
+        r("b", "https://arxiv.org/abs/1706.03762", SourceType.PINNED, space="Research",
+          folder_path=["Transformers"], folder_ids=["F2"]),
         r("x", "https://example.com/", SourceType.ARCHIVED),
         r("y", "https://example.com", SourceType.ARCHIVED),
-    ]
+    ]  # fmt: skip
     deduplicate(items)
     by = {i.id: i for i in items}
-    assert by["a"].duplicate_of is None
-    assert by["b"].duplicate_of == "a" and by["h"].duplicate_of == "a"
-    assert by["a"].found_in == [
-        "Personal > Papers (pinned)", "Research > Transformers (pinned)", "(no location) (history)"
-    ]  # fmt: skip
+    # Library records are equal: the first one saved (in scan order) is canonical,
+    # whether it is a favorite or a pinned tab. History never wins over the library.
+    assert by["f"].duplicate_of is None
+    assert {by[k].duplicate_of for k in "hab"} == {"f"}
+    locs = by["f"].locations
+    assert [loc.id for loc in locs] == ["h", "f", "a", "b"]
+    # Each location keeps its own URL, title and folder ids.
+    assert locs[2].url == "https://arxiv.org/pdf/1706.03762" and locs[2].folder_ids == ["F1"]
+    assert locs[1].title == "Fav title"
     assert by["y"].duplicate_of == "x"
+    # Invariant: every record survives as exactly one location of a canonical resource.
+    assert sum(len(i.locations) for i in items if i.duplicate_of is None) == len(items)
+    assert all(i.locations == [] for i in items if i.duplicate_of)
+
+
+def test_dedup_disabled_still_records_locations() -> None:
+    items = [r("a", "https://e.com/"), r("b", "https://e.com/")]
+    deduplicate(items, enabled=False)
+    assert [i.duplicate_of for i in items] == [None, None]
+    assert [len(i.locations) for i in items] == [1, 1]
 
 
 @pytest.mark.parametrize(

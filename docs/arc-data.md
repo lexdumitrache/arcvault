@@ -13,7 +13,7 @@ Root: `~/Library/Application Support/Arc/`
 | `StorableArchive.json` | 64-byte stub on this machine; no tab data seen | ignored |
 | `Storable*.<timestamp>.json` | Arc's own rolling backups of the files above | ignored (older copies) |
 | `User Data/<Profile>/History` | Chromium history SQLite | ✅ `sources/history.py` |
-| `User Data/<Profile>/Sessions/Session_*`, `Tabs_*` | Chromium SNSS session files | ✅ `sources/sessions.py` |
+| `User Data/<Profile>/Sessions/Session_*`, `Tabs_*` | Chromium SNSS session files | not used (support removed; format notes kept below) |
 | `ArchiveSnapshotCache/`, `*FaviconCache/` | Images | not used |
 
 Profiles are named `Default`, `Profile 1`, `Profile 2`, and so on. Each Space points to one profile.
@@ -38,7 +38,7 @@ sidebarSyncState                 # sync copy: items/spaceModels wrapped as {valu
 ```
 
 ArcVault prefers the local copy and falls back to the sync copy. On the test
-machine both held identical item sets.
+machine both held identical item sets and identical tab URLs.
 
 ### Items
 
@@ -52,7 +52,7 @@ Every item has this shape:
 | `data` kind | Meaning | Fields seen |
 |---|---|---|
 | `tab` | A tab | `savedURL`, `savedTitle`, `timeLastActiveAt`, `savedMuteStatus`, `activeTabBeforeCreationID`?, `referrerID`?, `customInfo`? |
-| `list` | A folder. Nests to any depth (3 levels seen) | none |
+| `list` | A folder. Nests to any depth (3 levels seen). Sibling folders can share a name, so ArcVault keys folders by id | none |
 | `itemContainer` | A root | `containerType`: `{"spaceItems": {"_0": spaceID}}` or `{"topApps": {"_0": profile}}` |
 | `splitView` | Tabs shown side by side | `layoutOrientation`, `focusItemID`, `itemWidthFactors` |
 
@@ -66,14 +66,17 @@ Every item has this shape:
  "newContainerIDs": [{"unpinned": {...}}, ID, {"pinned": {}}, ID]}
 ```
 
-The `pinned` container holds the Space's saved tabs and folders. The `unpinned`
-container holds the "Today" tabs, which auto-archive.
+The `pinned` container holds the Space's saved tabs and folders: ArcVault's
+**core library**. The `unpinned` container holds the "Today" tabs, which
+auto-archive; ArcVault treats them as **recovery** data, not library.
 
 ### Favorites
 
 `topAppsContainerIDs` is `[profileKey, containerID, …]` with one favorites
-container per profile. ArcVault assigns each one to the first Space that uses
-that profile.
+container per profile. Favorites belong to a profile, not a Space. ArcVault
+attributes them to a Space only when exactly one Space uses that profile;
+otherwise they are exported under a top-level "Favorites" folder. A profile
+can have favorites without any Space using it.
 
 ## StorableArchiveItems.json
 
@@ -83,7 +86,7 @@ that profile.
 ```
 
 All three `source` kinds and both `reason` values were seen on the test
-machine.
+machine. Entries with an empty `savedURL` also occur; there is nothing to recover from them.
 
 ## History
 
@@ -92,7 +95,10 @@ skips rows with `hidden = 1`, and skips `chrome://`, `arc://`, `about:`, `data:`
 and `file://` URLs. The database is copied to a temp directory first, so the
 live file is never opened.
 
-## Sessions (SNSS)
+## Sessions (SNSS): not used by ArcVault
+
+Session parsing was implemented and then removed (2026-10-01): it was fragile and
+added little beyond the archive. These notes are kept in case it's needed again.
 
 `"SNSS"`, then an int32 version (3 here), then records of the form
 `[uint16 size][uint8 command id][payload]`. Navigation payloads are

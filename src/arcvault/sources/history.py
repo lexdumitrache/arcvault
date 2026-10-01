@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
+import sqlite3
 from pathlib import Path
 
 from arcvault.arc.reader import sqlite_copy
 from arcvault.arc.schema import chrome_time
+from arcvault.errors import ArcDataReadError
 from arcvault.models import Resource, SourceType
 
 SKIP_SCHEMES = ("chrome://", "arc://", "chrome-extension://", "about:", "data:", "file://")
 
 
 def parse_history(path: Path, profile: str, space: str | None) -> list[Resource]:
-    with sqlite_copy(path) as con:
-        rows = con.execute(
-            "SELECT id, url, title, visit_count, last_visit_time FROM urls WHERE hidden = 0"
-        ).fetchall()
+    try:
+        with sqlite_copy(path) as con:
+            rows = con.execute(
+                "SELECT id, url, title, visit_count, last_visit_time FROM urls WHERE hidden = 0"
+            ).fetchall()
+    except sqlite3.Error as e:  # corrupt, locked, or a schema Chromium has changed
+        raise ArcDataReadError(f"Could not read {profile}/History: {e}") from e
     return [
         Resource(
             id=f"history:{profile}:{rid}",

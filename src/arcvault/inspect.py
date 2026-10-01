@@ -10,6 +10,12 @@ from arcvault.arc.schema import KNOWN_NODE_TYPES, detect_sidebar_schema, node_ty
 
 UUID = re.compile(r"^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$")
 ENUMISH = re.compile(r"^[a-z][A-Za-z0-9]{0,30}$")  # e.g. "manual", "allowAudio", "pinned"
+# Only values under these keys may stay as plain words. Any other free text could be personal
+# (a one-word title, a search term), so it becomes a placeholder.
+ENUM_KEYS = {"savedMuteStatus", "reason", "layoutOrientation", "colorSpace", "icon", "translucencyStyle",
+             "overlay", "contentOverBackgroundAppearance", "lastChangedDevice", "containerIDs",
+             "newContainerIDs", "type", "kind", "status"}  # fmt: skip
+SAFE_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 URL_KEYS = {"savedURL", "url", "URL", "urlString"}
 TITLE_KEYS = {"title", "savedTitle"}
 REDACT_KEYS = {"encodedCKRecordFields", "serverChangeToken", "machineID", "originatingDevice",
@@ -45,7 +51,14 @@ class Sanitizer:
     """Replaces personal values with stable placeholders; keeps structure, keys and enums."""
 
     def __init__(self) -> None:
-        self.maps: dict[str, dict[str, str]] = {"url": {}, "title": {}, "space": {}, "folder": {}, "str": {}}
+        self.maps: dict[str, dict[str, str]] = {
+            "url": {},
+            "title": {},
+            "space": {},
+            "folder": {},
+            "str": {},
+            "key": {},
+        }
 
     def _ph(self, kind: str, value: str, fmt: str) -> str:
         m = self.maps[kind]
@@ -55,7 +68,7 @@ class Sanitizer:
 
     def __call__(self, o: Any, key: str = "", parent: dict[str, Any] | None = None) -> Any:
         if isinstance(o, dict):
-            return {k: self(v, k, o) for k, v in o.items()}
+            return {self._key(k): self(v, k, o) for k, v in o.items()}
         if isinstance(o, list):
             return [self(v, key, parent) for v in o]
         if isinstance(o, str):
@@ -63,6 +76,17 @@ class Sanitizer:
         if isinstance(o, float) and TIME_KEY.search(key):
             return 700000000.0  # timestamps reveal activity patterns
         return o
+
+    def _key(self, k: Any) -> Any:
+        """Dict keys are schema and stay, unless they look like data (a URL, host, title...)."""
+        if (
+            not isinstance(k, str)
+            or SAFE_KEY.match(k)
+            or UUID.match(k)
+            or k.startswith("thebrowser.company.")
+        ):
+            return k
+        return self._ph("key", k, "<key {:04d}>")
 
     def _str(self, s: str, key: str, parent: dict[str, Any]) -> str:
         if key in REDACT_KEYS:
@@ -75,7 +99,7 @@ class Sanitizer:
             if isinstance(parent.get("data"), dict) and "list" in parent["data"]:
                 return self._ph("folder", s, "Folder {:03d}")
             return self._ph("title", s, "Resource {:03d}")
-        if UUID.match(s) or ENUMISH.match(s) or s.startswith("thebrowser.company."):
+        if UUID.match(s) or s.startswith("thebrowser.company.") or (key in ENUM_KEYS and ENUMISH.match(s)):
             return s
         if key == "directoryBasename" and re.match(r"^(Default|Profile \d+)$", s):
             return s

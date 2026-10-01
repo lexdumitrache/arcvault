@@ -1,13 +1,19 @@
-"""Conservative URL normalization. The original URL is always kept separately."""
+"""Conservative URL normalization. The original URL is always kept separately.
+
+Only changes that cannot point at a different resource: scheme/host case, default port,
+trailing slash, known tracking parameters, an empty fragment. Fragments are KEPT: apps such
+as Gmail, Google Docs/Sheets (#gid=, #heading=) and single-page apps route with them, so
+dropping them would merge genuinely different pages. The query is never decoded/re-encoded.
+"""
 
 from __future__ import annotations
 
 import re
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlsplit, urlunsplit
 
 TRACKING_PARAMS = {
     "fbclid", "gclid", "dclid", "msclkid", "mc_cid", "mc_eid", "igshid",
-    "_hsenc", "_hsmi", "yclid", "twclid", "si",
+    "_hsenc", "_hsmi", "yclid", "twclid",
 }  # fmt: skip
 DEFAULT_PORTS = {"http": 80, "https": 443}
 
@@ -32,18 +38,14 @@ def normalize_url(url: str, remove_tracking: bool = True) -> str:
         port = None
     netloc = host if port in (None, DEFAULT_PORTS[parts.scheme]) else f"{host}:{port}"
 
-    path = parts.path or ""
-    if path.endswith("/"):
-        path = path.rstrip("/")
+    path = parts.path.rstrip("/")
 
     query = parts.query
     if remove_tracking and query:
-        kept = [(k, v) for k, v in parse_qsl(query, keep_blank_values=True) if not _is_tracking(k)]
-        query = urlencode(kept, doseq=True)
+        # Split the raw string so kept parameters stay byte-for-byte identical.
+        query = "&".join(p for p in query.split("&") if p and not _is_tracking(p.split("=", 1)[0]))
 
-    # Fragments are usually in-page anchors, but SPAs route with "#/" or "#!".
-    frag = parts.fragment if parts.fragment.startswith(("/", "!")) else ""
-    return urlunsplit((parts.scheme.lower(), netloc, path, query, frag))
+    return urlunsplit((parts.scheme.lower(), netloc, path, query, parts.fragment))
 
 
 def domain_of(url: str) -> str | None:
@@ -63,7 +65,9 @@ YOUTUBE = re.compile(
 )
 GITHUB = re.compile(r"^https?://(?:www\.)?github\.com/([\w.-]+)/([\w.-]+)/?(?:[?#].*)?$", re.I)
 GITHUB_NON_REPO = {"orgs", "topics", "settings", "marketplace", "explore", "features", "about",
-                   "sponsors", "notifications", "pulls", "issues", "search", "login", "trending"}  # fmt: skip
+                   "sponsors", "notifications", "pulls", "issues", "search", "login", "trending",
+                   "apps", "collections", "enterprise", "pricing", "team", "new", "codespaces",
+                   "copilot", "readme", "events", "security", "customer-stories", "sitemap"}  # fmt: skip
 
 
 def identity_key(url: str) -> str | None:

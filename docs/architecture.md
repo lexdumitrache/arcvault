@@ -4,13 +4,13 @@
  Arc files ──► arc/ (discovery, read-only reader, schema decoding)
                 │
                 ▼
-          sources/ (sidebar, archive, history, sessions)  ──► list[Resource]
+          sources/ (sidebar, archive, history)  ──► list[Resource]
                 │                                             normalized model, no Arc types
                 ▼
           processing/ (normalize → deduplicate → classify → organize)
                 │
                 ▼
-             Library ──► exporters/  json · csv · markdown · bookmarks · library · kb
+             Library ──► exporters/  json · csv · markdown · bookmarks · library
                     ├──► search.py   SQLite FTS5 index in ~/.arcvault/index.db
                     ├──► stats.py
                     ├──► enrichment.py   (opt-in, network)
@@ -22,7 +22,9 @@
 - **Only `arc/reader.py` opens Arc's files.** It opens them read-only, and copies SQLite databases to a temp directory before querying them.
 - **Arc's format stays in `arc/schema.py` and `sources/`.** All other code sees only `Resource` and `Space` (`models.py`), so adding another browser later means writing a new `sources/` module.
 - **Each source fails on its own.** `ArcVault.scan()` runs every source inside `run()`. If one fails, it shows up as a failed `SourceReport` and the other sources still export.
-- **Duplicates are kept.** `deduplicate()` sets `duplicate_of` on the extra copies and gives the canonical record a `found_in` list of every place the URL appeared. The canonical record is the copy from the most deliberate source: pinned > favorite > today > archived > history > session.
+- **No location is ever lost.** `deduplicate()` gives the canonical record a `locations` list with one `Location` per merged Arc item (its own URL, title, Space, folder path and ids, timestamps), and sets `duplicate_of` on the others. The canonical record is the first *library* record in scan order. Saved items are equal: there is no ranking between favorites, pinned tabs and folder tabs. Invariant: total locations == extracted records.
+- **Library vs recovery.** `ArcVault.scan()` returns only sidebar-saved items (`SourceType.is_library`) by default. Archive and Today tabs (`archive=True`) and history (`history=True`) are opt-in.
+- **Hierarchical exports use locations.** `exporters.build_tree()` places each resource at every location, keys folders by id, and is seeded with `Library.folders` so empty folders survive.
 - **The network is used only when asked:** by `--enrich`, `organize --ai`, or `metadata.enrich = true` in the config.
 
 ## Modules

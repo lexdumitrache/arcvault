@@ -144,9 +144,40 @@ def archive() -> dict[str, Any]:
     }
 
 
+def edge_cases() -> dict[str, Any]:
+    """Cases found in the real-data audit (2026-10): same-named sibling folders, an empty folder,
+    one URL saved in several places, fragment-routed app URLs, a child-id cycle, and a profile
+    shared by two Spaces (so its favorites can't be attributed to either)."""
+    d = nested()
+    c = d["sidebar"]["containers"][1]
+    items = c["items"]
+    items[1]["childrenIds"] += ["FA", "FB", "FE", "T-gm1", "T-gm2"]  # S1-P
+    items += flat([
+        folder("FA", "S1-P", "Papers", ["T-sh1", "T-a"]),
+        folder("FB", "S1-P", "Papers", ["T-b", "FB"]),  # cycle: lists itself as a child
+        folder("FE", "S1-P", "Empty", []),
+        tab("T-sh1", "FA", "https://shared.example.com/page", "Shared (Personal)"),
+        tab("T-a", "FA", "https://a.example.com/", "Paper A"),
+        tab("T-b", "FB", "https://b.example.com/", "Paper B"),
+        tab("T-gm1", "S1-P", "https://mail.google.com/mail/u/0/#inbox/AAA", "Thread A"),
+        tab("T-gm2", "S1-P", "https://mail.google.com/mail/u/0/#inbox/BBB", "Thread B"),
+        tab("T-sh2", "S2-P", "https://shared.example.com/page/?utm_source=x", "Shared (Research)"),
+        tab("T-sh3", "FAV", "https://shared.example.com/page", "Shared (Favorite)"),
+        container("S3-P", [], {"spaceItems": {"_0": "S3"}}),
+        container("S3-U", [], {"spaceItems": {"_0": "S3"}}),
+    ])  # fmt: skip
+    for it in items:
+        if isinstance(it, dict) and it.get("id") == "S2-P":
+            it["childrenIds"].append("T-sh2")
+        if isinstance(it, dict) and it.get("id") == "FAV":
+            it["childrenIds"].append("T-sh3")
+    c["spaces"] += flat([space("S3", "Work", "S3-P", "S3-U", {"default": True})])
+    return d
+
+
 if __name__ == "__main__":
     for name, fn in [("sidebar_nested", nested), ("sidebar_basic", basic_sync),
                      ("sidebar_unknown_nodes", unknown_nodes), ("sidebar_malformed", malformed),
-                     ("archive", archive)]:  # fmt: skip
+                     ("sidebar_edge_cases", edge_cases), ("archive", archive)]:  # fmt: skip
         (HERE / f"{name}.json").write_text(json.dumps(fn(), indent=1))
     print("fixtures written")

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -54,15 +56,21 @@ def test_cli_default_export(arc_dir: Path, tmp_path: Path) -> None:
         "arcvault.csv",
         "arcvault.md",
         "bookmarks.html",
+        "library.html",
     }
+    assert "arcvault recover" in text  # recovery is pointed to, not mixed in
 
 
 def test_cli_commands(arc_dir: Path, tmp_path: Path) -> None:
     out = str(tmp_path / "out")
     assert "Attention Is All You Need" in cli(arc_dir, "search", "attention")
     assert "Robotics" in cli(arc_dir, "organize")
-    stats = json.loads(cli(arc_dir, "stats", "--json"))
-    assert stats["spaces"] == 2 and stats["duplicates"] >= 1
+    text = cli(arc_dir, "-o", out, "export", "--stats", "-f", "json")
+    assert "Per space" in text and "Top domains" in text
+    stats = json.loads((Path(out) / "arcvault.json").read_text())["statistics"]
+    assert stats["spaces"] == 2 and stats["saved_in_multiple_places"] >= 1
+    assert "Robotics" in cli(arc_dir, "-o", out, "organize", "--write")
+    assert (Path(out) / "topics" / "index.md").is_file()
     assert "Recovered" not in cli(arc_dir, "-o", out, "recover")
     assert (Path(out) / "recovered" / "arcvault.json").is_file()
     assert "Arc installation detected" in cli(arc_dir, "doctor")
@@ -92,3 +100,15 @@ def test_config(tmp_path: Path) -> None:
     p.write_text("not = = toml")
     with pytest.raises(ConfigurationError):
         load_config(p)
+
+
+def test_search_index_refreshes_when_arc_changes(arc_dir: Path) -> None:
+    assert "Attention Is All You Need" in cli(arc_dir, "search", "attention")
+    # Arc saves a new tab: the next search must see it without a manual reindex.
+    p = arc_dir / "StorableSidebar.json"
+    p.write_text(p.read_text().replace("Attention Is All You Need", "Renamed Paper Title"))
+    os.utime(p, (time.time() + 5, time.time() + 5))
+    assert "Renamed Paper Title" in cli(arc_dir, "search", "renamed")
+    # Asking for archived tabs switches the index scope.
+    assert "Archived A1" in cli(arc_dir, "search", "archived", "--archive")
+    assert "Archived A1" not in cli(arc_dir, "search", "archived")

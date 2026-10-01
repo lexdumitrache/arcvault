@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
+from dataclasses import dataclass, field
 from typing import Any
 
 from arcvault.arc.schema import (
@@ -14,21 +15,38 @@ from arcvault.arc.schema import (
     profile_dir,
     space_containers,
 )
-from arcvault.models import Resource, SourceType, Space
+from arcvault.models import Folder, Resource, SourceType, Space
 
 log = logging.getLogger("arcvault")
 
 CONTAINER_SOURCES = {"pinned": SourceType.PINNED, "unpinned": SourceType.UNPINNED}
 
 
-def parse_sidebar(data: Any) -> tuple[list[Resource], list[Space], SidebarData]:
+@dataclass
+class SidebarResult:
+    resources: list[Resource] = field(default_factory=list)
+    spaces: list[Space] = field(default_factory=list)
+    folders: list[Folder] = field(default_factory=list)
+    data: SidebarData | None = None
+
+
+def profile_spaces(spaces: list[Space]) -> dict[str | None, str]:
+    """profile -> Space title, only for profiles used by exactly one Space.
+
+    Favorites and history belong to a profile, not a Space; attributing them to a Space is
+    only honest when that profile maps to a single Space.
+    """
+    counts = Counter(s.profile for s in spaces)
+    return {s.profile: s.title for s in spaces if s.profile and counts[s.profile] == 1}
+
+
+def parse_sidebar(data: Any) -> SidebarResult:
     sb = detect_sidebar_schema(data)
-    resources: list[Resource] = []
-    spaces: list[Space] = []
+    out = SidebarResult(data=sb)
     seen: set[str] = set()
     unknown: Counter[str] = Counter()
 
-    def walk(item_id: str, space: str | None, path: list[str], source: SourceType) -> None:
+    def walk(item_id: str, space: str | None, path: list[tuple[str, str]], source: SourceType) -> None:
         if item_id in seen:  # guard against cycles / shared children
             return
         seen.add(item_id)
@@ -42,14 +60,15 @@ def parse_sidebar(data: Any) -> tuple[list[Resource], list[Space], SidebarData]:
                 tab = item["data"]["tab"] or {}
                 url = tab.get("savedURL")
                 if isinstance(url, str) and url:
-                    resources.append(
+                    out.resources.append(
                         Resource(
                             id=item_id,
                             url=url,
                             # A user-renamed tab keeps the custom name in item["title"].
                             title=item.get("title") or tab.get("savedTitle"),
                             space=space,
-                            folder_path=list(path),
+                            folder_path=[t for _, t in path],
+                            folder_ids=[i for i, _ in path],
                             source_type=source,
                             created_at=apple_time(item.get("createdAt")),
                             visited_at=apple_time(tab.get("timeLastActiveAt")),
@@ -58,7 +77,8 @@ def parse_sidebar(data: Any) -> tuple[list[Resource], list[Space], SidebarData]:
                     )
                 return
             if kind == "list":  # a folder
-                sub = [*path, item.get("title") or "Untitled folder"]
+                sub = [*path, (item_id, item.get("title") or "Untitled folder")]
+                out.folders.append(Folder(item_id, space, [t for _, t in sub], [i for i, _ in sub], source))
             elif kind in ("itemContainer", "splitView"):
                 sub = path  # transparent groupings
             else:
@@ -74,20 +94,19 @@ def parse_sidebar(data: Any) -> tuple[list[Resource], list[Space], SidebarData]:
 
     for s in sb.spaces:
         title = s.get("title") or "Untitled space"
-        spaces.append(Space(id=s["id"], title=title, profile=profile_dir(s.get("profile"))))
+        out.spaces.append(Space(id=s["id"], title=title, profile=profile_dir(s.get("profile"))))
         for label, cid in space_containers(s):
             walk(cid, title, [], CONTAINER_SOURCES.get(label, SourceType.UNKNOWN))
 
-    # Favorites are per profile; attribute to the first space using that profile.
-    by_profile = {sp.profile: sp.title for sp in reversed(spaces)}
+    by_profile = profile_spaces(out.spaces)
     for prof, cid in sb.top_apps:
         walk(cid, by_profile.get(prof), [], SourceType.FAVORITE)
 
-    # Anything not reachable from a known root is kept, not dropped.
+    # Tabs not reachable from a known root are kept (as UNKNOWN), not dropped.
     for iid in list(sb.items):
         if iid not in seen and node_type(sb.items[iid]) == "tab":
             walk(iid, None, [], SourceType.UNKNOWN)
 
     if unknown:
         sb.warnings.append(f"unknown node types: {dict(unknown)}")
-    return resources, spaces, sb
+    return out

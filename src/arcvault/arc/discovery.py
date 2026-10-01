@@ -23,7 +23,6 @@ class ArcInstallation:
     archive_sources: list[Path] = field(default_factory=list)
     # profile directory name -> History sqlite path
     history_paths: dict[str, Path] = field(default_factory=dict)
-    session_sources: list[Path] = field(default_factory=list)
     version: str | None = None
 
     @property
@@ -64,9 +63,4 @@ def discover(arc_path: str | Path | None = None) -> ArcInstallation:
                 continue
             if (h := prof / "History").is_file():
                 inst.history_paths[prof.name] = h
-            sess = prof / "Sessions"
-            if sess.is_dir():
-                inst.session_sources += sorted(
-                    p for p in sess.iterdir() if p.name.startswith(("Session_", "Tabs_"))
-                )
     return inst

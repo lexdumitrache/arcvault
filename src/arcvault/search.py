@@ -11,12 +11,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from arcvault.config import data_dir
-from arcvault.models import Resource
+from arcvault.models import Resource, locations_text
 
 if TYPE_CHECKING:
     from arcvault.vault import Library
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # bump when the index layout changes; old indexes are rebuilt
 
 
 def index_path() -> Path:
@@ -39,15 +39,16 @@ class Filters:
             return not needle or (hay is not None and needle.lower() in hay.lower())
 
         when = r.when
+        locs = r.locations or [r.as_location()]
         return (
-            has(self.space, r.space)
-            and has(self.folder, " > ".join(r.folder_path))
+            (not self.space or any(has(self.space, loc.space) for loc in locs))
+            and (not self.folder or any(has(self.folder, " > ".join(loc.folder_path)) for loc in locs))
             and has(self.category, r.category)
             and (
                 not self.type or (r.resource_type is not None and r.resource_type.value == self.type.lower())
             )
             and (not self.domain or (r.domain or "").endswith(self.domain.lower().removeprefix("www.")))
-            and (not self.source or r.source_type.value == self.source.lower())
+            and (not self.source or any(loc.source_type.value == self.source.lower() for loc in locs))
             and (not self.after or (when is not None and when >= _aware(self.after)))
             and (not self.before or (when is not None and when < _aware(self.before)))
         )
@@ -58,7 +59,7 @@ def _aware(d: datetime) -> datetime:
 
 
 def _text(r: Resource) -> str:
-    return " ".join([r.title or "", r.url, r.space or "", *r.folder_path, r.category or ""]).lower()
+    return " ".join([r.title or "", r.url, locations_text(r), r.category or ""]).lower()
 
 
 def search_resources(resources: list[Resource], query: str = "", **filters: Any) -> list[Resource]:
@@ -92,7 +93,7 @@ def has_fts5() -> bool:
         return False
 
 
-def build_index(lib: Library, path: Path | None = None) -> int:
+def build_index(lib: Library, path: Path | None = None, scope: str = "library") -> int:
     path = path or index_path()
     con = _connect(path)
     with con:
@@ -103,7 +104,7 @@ def build_index(lib: Library, path: Path | None = None) -> int:
             CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
             CREATE TABLE resources(
                 rowid INTEGER PRIMARY KEY, id TEXT UNIQUE, url TEXT, title TEXT, domain TEXT,
-                space TEXT, folder TEXT, source TEXT, type TEXT, category TEXT,
+                location TEXT, source TEXT, type TEXT, category TEXT,
                 visited TEXT, doc TEXT);
             CREATE INDEX idx_domain ON resources(domain);
             CREATE INDEX idx_type ON resources(type);
@@ -116,10 +117,10 @@ def build_index(lib: Library, path: Path | None = None) -> int:
                 "title, url, location, content='', tokenize='unicode61 remove_diacritics 2')"
             )
         con.executemany(
-            "INSERT INTO resources(id,url,title,domain,space,folder,source,type,category,visited,doc)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO resources(id,url,title,domain,location,source,type,category,visited,doc)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
             [
-                (r.id, r.url, r.title, r.domain, r.space, " > ".join(r.folder_path),
+                (r.id, r.url, r.title, r.domain, locations_text(r),
                  r.source_type.value, r.resource_type.value if r.resource_type else None,
                  r.category, r.when.isoformat() if r.when else None, json.dumps(r.to_dict()))
                 for r in lib.unique
@@ -129,11 +130,11 @@ def build_index(lib: Library, path: Path | None = None) -> int:
             con.execute(
                 "INSERT INTO resources_fts(rowid, title, url, location) "
                 "SELECT rowid, coalesce(title,''), url, "
-                "coalesce(space,'') || ' ' || folder || ' ' || coalesce(category,'') FROM resources"
+                "location || ' ' || coalesce(category,'') FROM resources"
             )
         con.execute(
-            "INSERT INTO meta VALUES ('schema', ?), ('built_at', ?)",
-            (str(SCHEMA_VERSION), datetime.now(UTC).isoformat()),
+            "INSERT INTO meta VALUES ('schema', ?), ('built_at', ?), ('scope', ?)",
+            (str(SCHEMA_VERSION), datetime.now(UTC).isoformat(), scope),
         )
     n = con.execute("SELECT count(*) FROM resources").fetchone()[0]
     con.close()
@@ -152,6 +153,16 @@ def index_info(path: Path | None = None) -> dict[str, str] | None:
         return info if info.get("schema") == str(SCHEMA_VERSION) else None
     except sqlite3.Error:
         return None
+
+
+def index_is_stale(scope: str, inputs: list[Path], path: Path | None = None) -> bool:
+    """Rebuild when there is no index, it covers different sources, or any input file
+    (Arc's data, ArcVault's config or AI-category cache) changed after it was built."""
+    info = index_info(path)
+    if info is None or info.get("scope") != scope:
+        return True
+    built = datetime.fromisoformat(info["built_at"]).timestamp()
+    return any(p.is_file() and p.stat().st_mtime > built for p in inputs)
 
 
 def _fts_query(q: str) -> str:
