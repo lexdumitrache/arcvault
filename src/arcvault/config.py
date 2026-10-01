@@ -25,8 +25,15 @@ def config_path() -> Path:
 
 
 def data_dir() -> Path:
-    """ArcVault-owned state (index, caches). Never inside Arc's directory."""
-    return Path(os.environ.get("ARCVAULT_HOME", "~/.arcvault")).expanduser()
+    """ArcVault-owned state (index, caches). Never inside Arc's directory.
+
+    Private (0700): it holds titles and URLs from the library, and on macOS every local
+    account is in the `staff` group that can read the home folder.
+    """
+    d = Path(os.environ.get("ARCVAULT_HOME", "~/.arcvault")).expanduser()
+    d.mkdir(mode=0o700, parents=True, exist_ok=True)
+    d.chmod(0o700)  # also tighten a folder created by an older version
+    return d
 
 
 def load_config(path: Path | None = None) -> dict[str, Any]:

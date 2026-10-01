@@ -15,7 +15,9 @@ from rich.console import Console
 from rich.markup import escape as _esc
 from rich.panel import Panel
 from rich.progress import Progress
+from rich.style import Style
 from rich.table import Table
+from rich.text import Text
 
 from arcvault import __version__
 from arcvault.config import config_path, data_dir, load_config
@@ -324,7 +326,8 @@ def search(
         console.print(f"{i}. [bold]{_esc(r.title or r.url)}[/bold]")
         console.print(f"   [dim]{t} · {r.category or ''}[/dim]")
         console.print("   " + _esc("; ".join(loc.label for loc in r.locations) or r.source_type.value))
-        console.print(f"   [link={r.url}][blue]{_esc(r.url[:100])}[/blue][/link]\n")
+        # Text, not markup: a "]" in a URL (e.g. "?a[]=1") would break markup parsing.
+        console.print(Text("   ") + Text(r.url[:100], style=Style(color="blue", link=r.url)), "\n")
     if not res and not archive:
         console.print("[dim]Tip: add --archive to also search auto-archived tabs.[/dim]")
 

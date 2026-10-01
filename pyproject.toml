@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arcvault"
-version = "1.0.0"
+version = "1.0.1"
 description = "Export, preserve, search, recover and organize your Arc browser library."
 readme = "README.md"
 license = "MIT"

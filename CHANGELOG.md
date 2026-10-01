@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.1 — 2026-10-01
+
+Security hardening from an audit. Web pages control their own titles and URLs, so those are now treated as hostile input everywhere they're shown.
+
+- `~/.arcvault` (search index and caches) is now private to your user account (0700). On macOS, other local accounts could read it before.
+- A page title such as `<!--<script>` could stop the HTML library page from loading. No `<` from your data reaches the page's script any more.
+- `arcvault search` crashed on URLs containing `]` (e.g. `?a[]=1`).
+- The Markdown export now escapes HTML in titles and only makes web/mail URLs clickable (no `javascript:` links).
+- The check for a local AI provider now matches the hostname exactly (`localhost.evil.example` no longer counts as local, so the cloud warning is shown).
+- Release and CI workflows pin every GitHub Action to an exact commit.
+
 ## 1.0.0 — 2026-10-01
 
 First public release.

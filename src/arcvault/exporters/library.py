@@ -33,8 +33,9 @@ def export_library(lib: Library, out: Path) -> None:
         for r in lib.unique
     ]
     folders = [_loc(_folder_path(f), f.source_type.value) for f in lib.folders]
-    # "</" inside the inline script would end it early.
-    js = json.dumps({"items": data, "folders": folders}, ensure_ascii=False).replace("</", "<\\/")
+    # No "<" may reach the inline script: "</script>" would end it early, and "<!--<script>"
+    # (e.g. in a page title) switches the HTML parser into a state where it never ends.
+    js = json.dumps({"items": data, "folders": folders}, ensure_ascii=False).replace("<", "\\u003c")
     html = TEMPLATE.replace("__DATA__", js).replace("__STAMP__", escape(f"{datetime.now(UTC):%Y-%m-%d}"))
     out.write_text(html, encoding="utf-8")
 

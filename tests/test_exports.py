@@ -167,7 +167,7 @@ def test_exports_agree(edge: Library, tmp_path: Path) -> None:
     assert len(d["resources"]) == len(rows) == n_unique
     assert len(re.findall(r"^- \[", md, re.M)) == n_locs
     assert len(bookmarks(edge, tmp_path).links) == n_locs
-    payload = json.loads(re.search(r"=(\{.*\});\n", lib_html).group(1).replace("<\\/", "</"))  # type: ignore[union-attr]
+    payload = json.loads(re.search(r"=(\{.*\});\n", lib_html).group(1))  # type: ignore[union-attr]
     assert len(payload["items"]) == n_unique
     assert sum(len(i["L"]) for i in payload["items"]) == n_locs
 
@@ -175,7 +175,7 @@ def test_exports_agree(edge: Library, tmp_path: Path) -> None:
 def test_library_html(lib: Library, tmp_path: Path) -> None:
     lib.unique[0].title = "</script><script>alert(1)</script>"
     html = lib.export("library", tmp_path).read_text()
-    assert "const {items:DATA" in html and "<\\/script>" in html
+    assert "const {items:DATA" in html and "\\u003c/script>" in html
     assert html.count("</script>") == 1  # payload cannot terminate the script tag
     assert "safeUrl" in html  # javascript: and other schemes are rendered as text, not links
 

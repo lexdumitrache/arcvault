@@ -12,12 +12,14 @@ import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
+from urllib.parse import urlsplit
 
 from arcvault.config import data_dir
 from arcvault.errors import ConfigurationError
 from arcvault.models import Classification, Resource
 
 BATCH = 100
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 class ClassificationProvider(Protocol):
@@ -86,7 +88,7 @@ class OpenAICompatibleProvider:
 
     def __init__(self, base_url: str, model: str, api_key: str | None, name: str) -> None:
         self.base_url, self.model, self.key, self.name = base_url.rstrip("/"), model, api_key, name
-        self.is_cloud = not re.match(r"https?://(localhost|127\.0\.0\.1)", base_url)
+        self.is_cloud = urlsplit(base_url).hostname not in LOCAL_HOSTS
 
     def classify(self, resources: list[Resource], categories: list[str]) -> list[Classification]:
         headers = {"authorization": f"Bearer {self.key}"} if self.key else {}

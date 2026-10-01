@@ -149,8 +149,15 @@ def export_csv(lib: Library, out: Path) -> None:
 # --- Markdown -----------------------------------------------------------------
 
 
+LINKABLE = ("http://", "https://", "ftp://", "mailto:")
+
+
 def _md_link(title: str | None, url: str) -> str:
-    t = (title or url).replace("[", "\\[").replace("]", "\\]")
+    # Titles come from web pages: escape HTML so Markdown viewers that render raw HTML
+    # can't be made to run it, and only make web/mail URLs clickable (no javascript:).
+    t = escape(title or url, quote=False).replace("[", "\\[").replace("]", "\\]")
+    if not url.lower().startswith(LINKABLE):
+        return f"- {t} (`{url.replace('`', '%60')}`)"
     return f"- [{t}]({url.replace(' ', '%20').replace('(', '%28').replace(')', '%29')})"
 
 
